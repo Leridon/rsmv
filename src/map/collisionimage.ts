@@ -47,16 +47,16 @@ export function drawCollision(grids: TileGridSource[], rect: MapRect, maplevel: 
 			colcheck(tiles, 0, true, true, true, true);
 
 			//walls
-			colcheck(tiles, 1, true, true, false, true);
-			colcheck(tiles, 2, true, false, true, true);
-			colcheck(tiles, 3, false, true, true, true);
-			colcheck(tiles, 4, true, true, true, false);
+			colcheck(tiles, 1, true, true, false, true);		// left
+			colcheck(tiles, 2, true, false, true, true);		// top
+			colcheck(tiles, 3, false, true, true, true);       // right
+			colcheck(tiles, 4, true, true, true, false);		// bottom
 
 			//corners
-			colcheck(tiles, 5, true, false, false, true);
-			colcheck(tiles, 6, false, false, true, true);
-			colcheck(tiles, 7, false, true, true, false);
-			colcheck(tiles, 8, true, true, false, false);
+			colcheck(tiles, 5, true, false, false, true);		// topleft
+			colcheck(tiles, 6, false, false, true, true);		// topright
+			colcheck(tiles, 7, false, true, true, false);		// botright
+			colcheck(tiles, 8, true, true, false, false);		// botleft
 		}
 	}
 

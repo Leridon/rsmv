@@ -5,7 +5,7 @@ import * as path from "path";
 import { cacheMajors } from "../constants";
 import { parse } from "../opdecoder";
 
-type Coord = { x: number, z: number, level: number };
+export type Coord = { x: number, z: number, level: number };
 
 export const cluecoords = command({
 	name: "download",
@@ -16,6 +16,9 @@ export const cluecoords = command({
 	handler: async (args) => {
 		let filesource = await args.source();
 		let outdir = path.resolve(args.save)
+
+		console.log(outdir)
+
 		fs.mkdirSync(outdir, { recursive: true });
 
 		let enums: number[] = [];

@@ -217,6 +217,7 @@ export async function svgfloor(engine: EngineCache, grid: TileGridSource, locs: 
 		for (let overlaylayer of overlays) {
 			for (let [col, overlay] of overlaylayer.entries()) {
 				for (let poly of overlay) {
+
 					for (let i = 0; i < poly.length; i++) {
 						let a = poly[i];
 						let b = poly[(i + 1) % poly.length];

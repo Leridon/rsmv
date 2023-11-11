@@ -15,7 +15,7 @@ export type Rect = { x: number, y: number, width: number, height: number };
 
 export type CacheOpts = { writable?: boolean } | undefined;
 
-function cacheSourceFromString(str: string) {
+export function cacheSourceFromString(str: string) {
 	let [mode, ...argparts] = str.split(":",);
 	let arg = argparts.join(":");
 	return async (opts: CacheOpts) => {

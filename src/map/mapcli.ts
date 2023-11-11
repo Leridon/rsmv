@@ -6,6 +6,7 @@ import { runMapRender } from ".";
 import { Openrs2CacheSource, openrs2GetEffectiveBuildnr, validOpenrs2Caches } from "../cache/openrs2loader";
 import { stringToFileRange } from "../utils";
 import { classicBuilds, ClassicFileSource, detectClassicVersions } from "../cache/classicloader";
+import {main} from "../zyklop_main";
 
 let cmd = cmdts.command({
 	name: "download",
@@ -75,7 +76,7 @@ let cmd = cmdts.command({
 		}
 	}
 });
-
+/*
 (async () => {
 	let res = await cmdts.runSafely(cmd, cliArguments());
 	if (res._tag == "error") {
@@ -83,4 +84,6 @@ let cmd = cmdts.command({
 	} else {
 		console.log("cmd completed", res.value);
 	}
-})();
+})();*/
+
+main()
