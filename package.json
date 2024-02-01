@@ -69,6 +69,7 @@
 		"@andreekeberg/imagedata": "^1.0.2",
 		"cmd-ts": "^0.7.0",
 		"comment-json": "^4.2.2",
+		"lodash": "^4.17.21",
 		"lzma": "^2.3.2",
 		"node-fetch": "^2.6.5",
 		"pako": "^2.1.0"

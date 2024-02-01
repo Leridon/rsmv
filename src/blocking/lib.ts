@@ -1,3 +1,5 @@
+import {clamp, identity} from "lodash";
+
 export namespace ZyklopLib {
     export async function time<T>(name: string, f: () => T): Promise<T> {
 
@@ -14,29 +16,47 @@ export namespace ZyklopLib {
     export type Vector2 = { x: number, y: number }
 
     export namespace Vector2 {
-        export function add(a: Vector2, b: Vector2): Vector2 {
+        export function add(...a: Vector2[]): Vector2 {
             return {
-                x: a.x + b.x,
-                y: a.y + b.y,
+                x: a.map(v => v.x).reduce((c, d) => c + d, 0),
+                y: a.map(v => v.y).reduce((c, d) => c + d, 0),
             }
         }
 
         export function sub(a: Vector2, b: Vector2): Vector2 {
             return {
                 x: a.x - b.x,
-                y: a.y - b.y,
+                y: a.y - b.y
+            }
+        }
+
+        export function mul(a: Vector2, b: Vector2): Vector2 {
+            return {
+                x: a.x * b.x,
+                y: a.y * b.y
+            }
+        }
+
+        export function neg(a: Vector2): Vector2 {
+            return {
+                x: -a.x,
+                y: -a.y
             }
         }
 
         export function scale(f: number, v: Vector2): Vector2 {
             return {
                 x: v.x * f,
-                y: v.y * f,
+                y: v.y * f
             }
         }
 
         export function length(a: Vector2): number {
-            return Math.sqrt(a.x * a.x + a.y * a.y)
+            return Math.sqrt(lengthSquared(a))
+        }
+
+        export function lengthSquared(a: Vector2): number {
+            return a.x * a.x + a.y * a.y
         }
 
         export function normalize(a: Vector2): Vector2 {
@@ -46,7 +66,7 @@ export namespace ZyklopLib {
         export function sign(a: Vector2): Vector2 {
             return {
                 x: Math.sign(a.x),
-                y: Math.sign(a.y),
+                y: Math.sign(a.y)
             }
         }
 
@@ -71,7 +91,152 @@ export namespace ZyklopLib {
         export function max_axis(a: Vector2): number {
             return Math.max(Math.abs(a.x), Math.abs(a.y))
         }
+
+        export function min_axis(a: Vector2): number {
+            return Math.min(Math.abs(a.x), Math.abs(a.y))
+        }
+
+        export function copy(c: Vector2): Vector2 {
+            return {
+                x: c.x,
+                y: c.y
+            }
+        }
+
+        export function snap(c: Vector2, grid: number = 1): Vector2 {
+            return {x: Math.round(c.x / grid) * grid, y: Math.round(c.y / grid) * grid}
+        }
+
+        /**
+         * Transforms a Vector2 by the given transform, interpreting the Vector as a direction.
+         */
+        export function transform(a: Vector2, trans: Transform): Vector2 {
+            let r = Transform.apply(trans, [a.x, a.y, 0])
+
+            return {x: r[0], y: r[1]}
+        }
+
+        /**
+         * Transforms a Vector2 by the given transform, interpreting the Vector as a point in space.
+         */
+        export function transform_point(a: Vector2, trans: Transform): Vector2 {
+            let r = Transform.apply(trans, [a.x, a.y, 1])
+
+            return snap({x: r[0], y: r[1]}, 0.5)
+        }
+
+        export function abs(a: Vector2): Vector2 {
+            return {x: Math.abs(a.x), y: Math.abs(a.y)}
+        }
+
+        export function toString(a: Vector2): string {
+            return `${a.x}|${a.y}`
+        }
+
+        export function hash(c: Vector2, mod: number = 64): number {
+            return Math.floor(Math.abs((c.x ^ c.y) % mod))
+        }
     }
+
+    export type Transform = Transform.Matrix
+
+    export namespace Transform {
+        export type Vector3 = [number, number, number]
+        export type Matrix = [Vector3, Vector3, Vector3]
+
+        export namespace Vector3 {
+            export function toVector2(a: Vector3): Vector2 {
+                return {x: a[0], y: a[1]}
+            }
+
+            export function position(a: Vector2): Vector3 {
+                return [a.x, a.y, 1]
+            }
+
+            export function direction(a: Vector2): Vector3 {
+                return [a.x, a.y, 0]
+            }
+        }
+
+        function mul(a: Vector3, b: Vector3): number {
+            return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+        }
+
+        export function translation(offset: Vector2): Transform {
+            return [
+                [1, 0, offset.x],
+                [0, 1, offset.y],
+                [0, 0, 1]
+            ]
+        }
+
+        export function rotation(rot: number): Transform {
+            let theta = rot * Math.PI / 2
+
+            return [
+                [Math.cos(theta), -Math.sin(theta), 0],
+                [Math.sin(theta), Math.cos(theta), 0],
+                [0, 0, 1]
+            ]
+        }
+
+        export function scale(scale: Vector2): Transform {
+            return [
+                [scale.x, 0, 0],
+                [0, scale.y, 0],
+                [0, 0, 1]
+            ]
+        }
+
+        export function mirror_x(): Transform {
+            return [
+                [-1, 0, 0],
+                [0, 1, 0],
+                [0, 0, 1]
+            ]
+        }
+
+        export function mirror_y(): Transform {
+            return [
+                [1, 0, 0],
+                [0, -1, 0],
+                [0, 0, 1]
+            ]
+        }
+
+        export function row(a: Transform, n: 0 | 1 | 2): Vector3 {
+            return a[n]
+        }
+
+        export function col(a: Transform, n: 0 | 1 | 2): Vector3 {
+            return [a[0][n], a[1][n], a[2][n]]
+        }
+
+        export function mult(a: Transform, b: Transform): Transform {
+            return [0, 1, 2].map((r) =>
+                                     [0, 1, 2].map((c) =>
+                                                       mul(row(a, r as 0 | 1 | 2), col(b, c as 0 | 1 | 2))
+                                     )
+            ) as Matrix
+        }
+
+        export function apply(a: Transform, b: Vector3): Vector3 {
+            return [
+                mul(row(a, 0), b),
+                mul(row(a, 1), b),
+                mul(row(a, 2), b),
+            ]
+        }
+
+        export function identity(): Transform {
+            return [
+                [1, 0, 0],
+                [0, 1, 0],
+                [0, 0, 1]
+            ]
+        }
+    }
+
 
     export type direction = direction.none | direction.cardinal | direction.ordinal
 
@@ -170,6 +335,158 @@ export namespace ZyklopLib {
                 [south, west]
             ] as [cardinal, cardinal][]) [dir - 5]
 
+        }
+    }
+
+    export type Rectangle = { topleft: Vector2, botright: Vector2 }
+
+    export namespace Rectangle {
+        export function from(...points: Vector2[]): Rectangle | null {
+            points = points.filter(identity)
+
+            if (points.length == 0) return null
+
+            return {
+                topleft: {x: Math.min(...points.map(v => v.x)), y: Math.max(...points.map(v => v.y))},
+                botright: {x: Math.max(...points.map(v => v.x)), y: Math.min(...points.map(v => v.y))},
+            }
+        }
+
+        export function containsTile(box: Rectangle, tile: Vector2) {
+            return box.topleft.x - 0.5 <= tile.x
+                && box.topleft.y + 0.5 >= tile.y
+                && box.botright.x + 0.5 >= tile.x
+                && box.botright.y - 0.5 <= tile.y
+        }
+
+        export function contains(box: Rectangle, tile: Vector2) {
+            return box.topleft.x <= tile.x
+                && box.topleft.y >= tile.y
+                && box.botright.x >= tile.x
+                && box.botright.y <= tile.y
+        }
+
+        export function extend(box: Rectangle, padding: number): Rectangle {
+            return {
+                topleft: Vector2.add(box.topleft, {x: -padding, y: padding}),
+                botright: Vector2.add(box.botright, {x: padding, y: -padding}),
+            }
+        }
+
+        export function clampInto(pos: Vector2, area: Rectangle): Vector2 {
+            return {
+                x: clamp(pos.x, area.topleft.x, area.botright.x),
+                y: clamp(pos.y, area.botright.y, area.topleft.y),
+            }
+        }
+
+        export function center(box: Rectangle, snap: boolean = true): Vector2 {
+            let c = {
+                x: (box.topleft.x + box.botright.x) / 2,
+                y: (box.topleft.y + box.botright.y) / 2
+            }
+
+            if (snap) return Vector2.snap(c)
+            else return c
+        }
+
+        export function left(rect: Rectangle): Rectangle {
+            return {
+                topleft: {x: rect.topleft.x, y: rect.topleft.y},
+                botright: {x: rect.topleft.x, y: rect.botright.y}
+            }
+        }
+
+        export function right(rect: Rectangle): Rectangle {
+            return {
+                topleft: {x: rect.botright.x, y: rect.topleft.y},
+                botright: {x: rect.botright.x, y: rect.botright.y}
+            }
+        }
+
+        export function top(rect: Rectangle): Rectangle {
+            return {
+                topleft: {x: rect.topleft.x, y: rect.topleft.y},
+                botright: {x: rect.botright.x, y: rect.topleft.y}
+            }
+        }
+
+        export function bottom(rect: Rectangle): Rectangle {
+            return {
+                topleft: {x: rect.topleft.x, y: rect.botright.y},
+                botright: {x: rect.botright.x, y: rect.botright.y}
+            }
+        }
+
+        export function topRight(rect: Rectangle): Vector2 {
+            return {x: rect.botright.x, y: rect.topleft.y}
+        }
+
+        export function bottomLeft(rect: Rectangle): Vector2 {
+            return {x: rect.topleft.x, y: rect.botright.y}
+        }
+
+        export function tileWidth(rect: Rectangle): number {
+            return rect.botright.x - rect.topleft.x + 1
+        }
+
+        export function tileHeight(rect: Rectangle): number {
+            return rect.topleft.y - rect.botright.y + 1
+        }
+
+        export function width(rect: Rectangle): number {
+            return rect.botright.x - rect.topleft.x
+        }
+
+        export function height(rect: Rectangle): number {
+            return rect.topleft.y - rect.botright.y
+        }
+
+        export function extendTo(rect: Rectangle, tile: Vector2): Rectangle {
+            return {
+                topleft: {
+                    x: Math.min(rect.topleft.x, tile.x),
+                    y: Math.max(rect.topleft.y, tile.y)
+                },
+                botright: {
+                    x: Math.max(rect.botright.x, tile.x),
+                    y: Math.min(rect.botright.y, tile.y)
+                }
+            }
+        }
+
+        export function extendToRect(rect: Rectangle, other: Rectangle): Rectangle {
+            return extendTo(extendTo(rect, other.topleft), other.botright)
+        }
+
+        export function combine(...rects: Rectangle[]): Rectangle | null {
+            return Rectangle.from(...rects.flatMap(r => r ? [r.topleft, r.botright] : []))
+        }
+
+        export function translate(rect: Rectangle, off: Vector2): Rectangle {
+            return {
+                topleft: Vector2.add(rect.topleft, off),
+                botright: Vector2.add(rect.botright, off)
+            }
+        }
+
+        export function transform(rect: Rectangle, trans: Transform): Rectangle | null {
+            return Rectangle.from(
+                Vector2.transform_point(rect.topleft, trans),
+                Vector2.transform_point(rect.botright, trans),
+            )
+        }
+
+        export function overlaps(a: Rectangle, b: Rectangle): boolean {
+            return (a.topleft.x <= b.botright.x && a.botright.x >= b.topleft.x) &&
+                (a.botright.y <= b.topleft.y && a.topleft.y >= b.botright.y)
+        }
+
+        export function centeredOn(center: Vector2, radius: number): Rectangle {
+            return {
+                topleft: Vector2.add(center, {x: -radius, y: radius}),
+                botright: Vector2.add(center, {x: radius, y: -radius}),
+            }
         }
     }
 }
