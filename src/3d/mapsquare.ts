@@ -632,6 +632,29 @@ export class TileGrid implements TileGridSource {
 		if (x < 0 || z < 0 || x >= this.xsize || z >= this.zsize) { return undefined; }
 		return this.tiles[this.levelstep * level + z * this.zstep + x * this.xstep];
 	}
+
+	blendUnderlaysCollisionOnly() {
+		for (let z = this.zoffset; z < this.zoffset + this.zsize; z++) {
+			for (let x = this.xoffset; x < this.xoffset + this.xsize; x++) {
+				let layer1tile = this.getTile(x, z, 1);
+				let flag2 = ((layer1tile?.settings ?? 0) & 2) != 0;
+				let leveloffset = (flag2 ? -1 : 0);
+
+				for (let level = 0; level < this.levels; level++) {
+					let currenttile = this.getTile(x, z, level);
+					if (!currenttile) { continue; }
+
+					let effectiveLevel = level + leveloffset;
+					let effectiveTile = this.getTile(x, z, effectiveLevel);
+
+					if (effectiveTile && effectiveLevel != level) {
+						effectiveTile.effectiveCollision = currenttile.rawCollision;
+					}
+				}
+			}
+		}
+	}
+
 	blendUnderlays() {
 		for (let z = this.zoffset; z < this.zoffset + this.zsize; z++) {
 			for (let x = this.xoffset; x < this.xoffset + this.xsize; x++) {
