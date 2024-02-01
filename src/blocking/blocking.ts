@@ -281,7 +281,7 @@ export async function create_collision_files(output: ScriptOutput, cache: Engine
             continue
         }
 
-        let grid = await time(`parse-${file_x}-${file_z}`, async () => await simpleParseMapsquare(cache, {
+        let {grid} = await time(`parse-${file_x}-${file_z}`, async () => await parseMapsquare(cache, {
                                                                                                 x: Math.max(0, file_x * chunk_meta.chunks_per_file - 1),
                                                                                                 z: Math.max(0, file_z * chunk_meta.chunks_per_file - 1),
                                                                                                 xsize: (chunk_meta.chunks_per_file + 1) + (file_x * chunk_meta.chunks_per_file < chunk_meta.chunks_x ? 1 : 0),

@@ -14,11 +14,13 @@ import {openrs2Ids} from "./scripts/openrs2ids"
 import {cluecoords} from "./scripts/cluecoords"
 import {mapsquareLocDependencies} from "./map/chunksummary"
 import {EngineCache, ThreejsSceneCache} from "./3d/modeltothree"
-import {MapRect} from "./3d/mapsquare"
+import {MapRect, parseMapsquare} from "./3d/mapsquare"
 import {RSMapChunk} from "./3d/modelnodes"
 import {getDependencies} from "./scripts/dependencies"
 import {cacheMajors} from "./constants"
 import {collision_file_index_full, create_collision_files} from "./blocking/blocking"
+import {ZyklopLib} from "./blocking/lib"
+import Rectangle = ZyklopLib.Rectangle
 
 const testdecode = command({
                                name: "testdecode",
@@ -229,7 +231,7 @@ const collisions = command({
                                },
                                async handler(args) {
                                    let filesource = await args.source()
-                                   let cache = await EngineCache.create(filesource)
+                                   let cache      = await EngineCache.create(filesource)
 
                                    let output = new CLIScriptOutput()
 
@@ -243,77 +245,61 @@ const leridon = command({
                                 ...filesource,
                             },
                             async handler(args) {
-                                console.log("Test")
+
+                                let filter = {"topleft": {"x": 3207, "y": 3417}, "botright": {"x": 3209, "y": 3415}, "level": 0}
 
                                 let filesource = await args.source()
                                 let cache      = await EngineCache.create(filesource)
 
-                                let opts = {
-                                    padfloor: false,
-                                    invisibleLayers: true,
-                                    collision: true,
-                                    map2d: false,
-                                    skybox: false,
-                                }
-
-                                /*
-
-                                 await parseMapsquare(cache, {
-                                 x: 40,
-                                 z: 60,
-                                 xsize: 1,
-                                 zsize: 1,
-                                 }, opts)*/
-
-                                let rect: MapRect = {
-                                    x: 40,
-                                    z: 60,
-                                    xsize: 1,
-                                    zsize: 1,
-                                }
-
-                                /*
-                                 let square: MaprenderSquare = {
-                                 x: x,
-                                 z: z,
-                                 loaded: null,
-                                 loadprom: new CallbackPromise(),
-                                 chunk: new RSMapChunk({x, z, xsize: 1, zsize: 1}, this.scenecache, this.opts),
-                                 id,
-                                 }*/
-
-                                let chunk = new RSMapChunk(rect, await ThreejsSceneCache.create(cache), opts)
-
-                                const deps = await getDependencies(cache)
-
-                                let locdeps = mapsquareLocDependencies((await chunk.chunkdata).grid, deps, (await chunk.chunkdata).modeldata, rect)
-
-                                let objects = (await cache.getCacheIndex(cacheMajors.objects))
-
-
-                                console.log((await chunk.chunkdata).modeldata.flat()
-                                                       .filter(instance => instance.extras.modeltype == "location" && !instance.extras.isGroundDecor)
+                                let {grid, chunks} = await parseMapsquare(cache, {
+                                                                              x: 50,
+                                                                              z: 53,
+                                                                              xsize: 1,
+                                                                              zsize: 1,
+                                                                          },
+                                                                          {
+                                                                              collision: true,
+                                                                              invisibleLayers: true,
+                                                                              map2d: true,
+                                                                              minimap: true,
+                                                                              padfloor: true,
+                                                                              skybox: true,
+                                                                          },
                                 )
 
-                                for (let instance of (await chunk.chunkdata).modeldata.flat()) {
-                                    if (instance.extras.modeltype == "location" && !instance.extras.isGroundDecor) {
-                                        console.log(instance)
-                                        debugger
-                                    }
-                                }
+                                const results = chunks.flatMap(c => c.locs)
+                                                      .filter(loc => {
+                                                          return Rectangle.contains(filter, {x: loc.x, y: loc.z})
+                                                      })
 
-
-                                locdeps.forEach(loc => {
-                                    //objects.
+                                results.forEach(loc => {
+                                    if (loc.location.name == "Door") debugger
+                                    console.log(loc.location.name)
+                                    console.log(loc.location.examine)
                                 })
 
                                 debugger
+
                             },
                         })
 
 let subcommands = cmdts.subcommands({
                                         name: "cache tools cli",
-                                        cmds: {collisions, extract, indexoverview, testdecode, diff, quickchat, scrapeavatars, edit, historicdecode, openrs2ids, filehist, cluecoords, leridon},
+                                        cmds: {
+                                            collisions,
+                                            extract,
+                                            indexoverview,
+                                            testdecode,
+                                            diff,
+                                            quickchat,
+                                            scrapeavatars,
+                                            edit,
+                                            historicdecode,
+                                            openrs2ids,
+                                            filehist,
+                                            cluecoords,
+                                            leridon,
+                                        },
                                     })
 
 cmdts.run(subcommands, cliArguments())
