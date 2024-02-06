@@ -1,10 +1,10 @@
-import {filesource, cliArguments, ReadCacheSource, filerange} from "./cliparser"
-import {command, option, flag} from "cmd-ts"
+import {cliArguments, filerange, filesource, ReadCacheSource} from "./cliparser"
+import * as cmdts from "cmd-ts"
+import {command, flag, option} from "cmd-ts"
 import {cacheFileDecodeModes, cacheFileJsonModes} from "./scripts/filetypes"
-import {CLIScriptFS, CLIScriptOutput, ScriptOutput} from "./scriptrunner"
+import {CLIScriptFS, CLIScriptOutput} from "./scriptrunner"
 import {defaultTestDecodeOpts, testDecode, testDecodeHistoric} from "./scripts/testdecode"
 import {extractCacheFiles, writeCacheFiles} from "./scripts/extractfiles"
-import * as cmdts from "cmd-ts"
 import {indexOverview} from "./scripts/indexoverview"
 import {diffCaches} from "./scripts/cachediff"
 import {quickChatLookup} from "./scripts/quickchatlookup"
@@ -12,15 +12,15 @@ import {scrapePlayerAvatars} from "./scripts/scrapeavatars"
 import {fileHistory} from "./scripts/filehistory"
 import {openrs2Ids} from "./scripts/openrs2ids"
 import {cluecoords} from "./scripts/cluecoords"
-import {mapsquareLocDependencies} from "./map/chunksummary"
-import {EngineCache, ThreejsSceneCache} from "./3d/modeltothree"
-import {MapRect, parseMapsquare} from "./3d/mapsquare"
-import {RSMapChunk} from "./3d/modelnodes"
-import {getDependencies} from "./scripts/dependencies"
-import {cacheMajors} from "./constants"
+import {EngineCache} from "./3d/modeltothree"
+import {getMapsquareData, MapRect, resolveMorphedObject} from "./3d/mapsquare"
 import {collision_file_index_full, create_collision_files} from "./blocking/blocking"
-import {ZyklopLib} from "./blocking/lib"
-import Rectangle = ZyklopLib.Rectangle
+import {mapsquare_locations} from "../generated/mapsquare_locations"
+import fs from "fs"
+import {getActions, LocWithUsages, transportation_parsers} from "./transportation/parsers"
+import {floor_t, TileRectangle} from "./zykloplib/runescape/coordinates"
+import {Rectangle} from "./zykloplib/math"
+import {time} from "./zykloplib/util"
 
 const testdecode = command({
                                name: "testdecode",
@@ -239,6 +239,140 @@ const collisions = command({
                                },
                            })
 
+async function iterate_chunks(rect: MapRect | null = null, f: (x: number, y: number) => Promise<void> | void): Promise<void> {
+    if (!rect) rect = {
+        x: 0, z: 0, xsize: 100, zsize: 200,
+    }
+
+    for (let x = 0; x < rect.xsize; x++) {
+        for (let y = 0; y < rect.zsize; y++) {
+            await f(rect.x + x, rect?.z + y)
+        }
+    }
+}
+
+const locs = command({
+                         name: "locs",
+                         args: {
+                             ...filesource,
+                         },
+                         async handler(args) {
+                             let filesource = await args.source()
+                             let cache      = await EngineCache.create(filesource)
+
+                             let all: Map<number, LocWithUsages> = new Map()
+
+                             async function uses(tile_rect: MapRect, loc: mapsquare_locations["locations"][number]): Promise<void> {
+                                 let resolved = (await resolveMorphedObject(cache, loc.id)).morphedloc
+
+                                 if (!resolved.name) return
+                                 if (!resolved.actions_0) return
+
+                                 const uses: LocWithUsages["uses"] = loc.uses.map(use => {
+                                     let [width, height] = use.rotation % 2 == 0
+                                         ? [resolved.width ?? 1, resolved.length ?? 1]
+                                         : [resolved.length ?? 1, resolved.width ?? 1]
+
+
+                                     return ({
+                                         ...use,
+                                         box: TileRectangle.lift(
+                                             Rectangle.from(
+                                                 {x: tile_rect.x + use.x, y: tile_rect.z + use.y},
+                                                 {x: tile_rect.x + use.x + width - 1, y: tile_rect.z + use.y + height - 1},
+                                             ),
+                                             use.plane as floor_t,
+                                         ),
+                                     })
+                                 })
+
+                                 const el = all.get(loc.id)
+
+                                 if (el) el.uses.push(...uses)
+                                 else all.set(loc.id, {id: loc.id, uses: uses, location: resolved})
+                             }
+
+                             let area: MapRect | null = null // {x: 20, z: 20, xsize: 30, zsize: 30}
+
+                             await time("Collecting Locs", async () => {
+                                 await iterate_chunks(area, async (x, y) => {
+                                     const data = await getMapsquareData(cache, x, y)
+
+                                     if (data) data.rawlocs.forEach(loc => uses(data.tilerect, loc))
+                                 })
+                             })
+
+                             let out = JSON.stringify(Object.fromEntries(Array.from(all.keys()).map(k => [k, all.get(k)])), null, 4)
+
+                             fs.writeFileSync("locs.json", out)
+                         },
+                     })
+
+const extract_shortcuts = command(
+    {
+        name: "shortcuts",
+        args: {},
+        async handler(args) {
+
+            let data: Record<number, LocWithUsages> = JSON.parse(fs.readFileSync("locs.json", "utf-8"))
+
+            await time("Shortcuts", () => {
+                let shortcuts = transportation_parsers
+                    .flatMap(p => {
+                        if (!p.instance) return []
+
+                        let vars = p.variants
+
+                        if (!vars) {
+                            vars = p.for ? [{for: p.for!!}] : []
+                        }
+
+                        return vars.flatMap(v => {
+                            return v.for.flatMap(loc_id => {
+                                let loc: LocWithUsages = data[loc_id]
+
+                                if (!loc) {
+                                    console.error(`Parser ${p.name} failed references non-existing id ${loc_id}!`)
+                                    return []
+                                }
+
+                                const instance = p.instance!!(loc.location, v.extra)
+
+                                let results = loc.uses.flatMap(use => {
+                                    try {
+                                        let result = instance(loc.location, use)
+
+                                        if (!Array.isArray(result)) result = [result]
+
+                                        return result
+                                    } catch (e) {
+                                        console.error(`Parser ${p.name} failed!`)
+                                        console.error(e)
+                                        return []
+                                    }
+                                })
+
+                                results.forEach(s => s.source_loc = loc_id)
+
+                                console.log(`Loc ${loc_id}: Extracted ${results.length} (by parser '${p.name}')`)
+
+                                return results
+                            })
+                        })
+                    })
+
+
+                console.log(`Extracted a total of ${shortcuts.length} shortcuts!`)
+
+                fs.writeFileSync("shortcuts.json", JSON.stringify(shortcuts, (key, value) => {
+                    if (key.startsWith("_")) return undefined
+
+                    return value
+                }, 2))
+            })
+        },
+    })
+
 const leridon = command({
                             name: "leridon",
                             args: {
@@ -246,40 +380,46 @@ const leridon = command({
                             },
                             async handler(args) {
 
-                                let filter = {"topleft": {"x": 3207, "y": 3417}, "botright": {"x": 3209, "y": 3415}, "level": 0}
+                                type filter_t = {
+                                    names?: string[],
+                                    option?: string,
+                                    area?: TileRectangle,
+                                    object_id?: number,
+                                    without_parser?: boolean
+                                }
 
-                                let filesource = await args.source()
-                                let cache      = await EngineCache.create(filesource)
+                                let filter: filter_t = {
+                                    names: ["ladder"],
+                                    without_parser: true,
+                                }
 
-                                let {grid, chunks} = await parseMapsquare(cache, {
-                                                                              x: 50,
-                                                                              z: 53,
-                                                                              xsize: 1,
-                                                                              zsize: 1,
-                                                                          },
-                                                                          {
-                                                                              collision: true,
-                                                                              invisibleLayers: true,
-                                                                              map2d: true,
-                                                                              minimap: true,
-                                                                              padfloor: true,
-                                                                              skybox: true,
-                                                                          },
-                                )
+                                let data: Record<number, LocWithUsages> = JSON.parse(fs.readFileSync("locs.json", "utf-8"))
 
-                                const results = chunks.flatMap(c => c.locs)
-                                                      .filter(loc => {
-                                                          return Rectangle.contains(filter, {x: loc.x, y: loc.z})
-                                                      })
+                                console.log(Object.values(data).filter(loc => {
+                                    let actions = getActions(loc.location)
 
-                                results.forEach(loc => {
-                                    if (loc.location.name == "Door") debugger
-                                    console.log(loc.location.name)
-                                    console.log(loc.location.examine)
+                                    return actions.every(a => a?.name.toLowerCase() == "close")
+                                }).map(loc => loc.id))
+
+                                let filtered = Object.values(data).filter((loc) => {
+                                    if (filter.names && !filter.names.some(n => loc.location.name!.toLowerCase().includes(n.toLowerCase()))) return false
+                                    if (filter.object_id && loc.id != filter.object_id) return false
+                                    if (filter.without_parser && transportation_parsers.some(p => {
+                                        return (p.variants && p.variants.some(v => v.for.includes(loc.id))) || (p.for && p.for.includes(loc.id))
+                                    })) return false
+
+                                    if (filter.option && !getActions(loc.location).some(a => a?.name.toLowerCase().includes(filter.option!.toLowerCase()))) return false
+
+                                    loc.uses = loc.uses.filter(use => {
+                                        return !(filter.area && (!Rectangle.overlaps(filter.area, use.box) || use.plane != filter.area?.level))
+                                    })
+
+                                    return loc.uses.length > 0
+                                }).sort((a, b) => {
+                                    return b.uses.length - a.uses.length
                                 })
 
-                                debugger
-
+                                fs.writeFileSync("results.json", JSON.stringify(filtered, null, 2))
                             },
                         })
 
@@ -299,6 +439,8 @@ let subcommands = cmdts.subcommands({
                                             filehist,
                                             cluecoords,
                                             leridon,
+                                            locs,
+                                            shortcuts: extract_shortcuts,
                                         },
                                     })
 
