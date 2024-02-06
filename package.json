@@ -67,6 +67,7 @@
 	},
 	"dependencies": {
 		"@andreekeberg/imagedata": "^1.0.2",
+		"byte-base64": "^1.1.0",
 		"cmd-ts": "^0.7.0",
 		"comment-json": "^4.2.2",
 		"lodash": "^4.17.21",

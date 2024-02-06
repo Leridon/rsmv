@@ -5,7 +5,7 @@ const CopyWebpackPlugin = require('copy-webpack-plugin');
  * @type {import("webpack").Configuration}
  */
 module.exports = {
-	devtool: false,
+	devtool: "source-map",
 	mode: "development",
 	entry: {
 		main: "./src/main.ts",
