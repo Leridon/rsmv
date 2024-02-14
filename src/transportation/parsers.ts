@@ -4,12 +4,19 @@ import {TileCoordinates, TileRectangle} from "../zykloplib/runescape/coordinates
 import {Transportation} from "../zykloplib/runescape/transportation"
 import transportation = Transportation.transportation
 import {direction} from "../zykloplib/runescape/movement"
-import {Transform, Vector2} from "../zykloplib/math"
+import {Rectangle, Transform, Vector2} from "../zykloplib/math"
 import {Path} from "../zykloplib/runescape/pathing"
 import InteractionType = Path.InteractionType
 import {TileArea} from "../zykloplib/runescape/coordinates/TileArea"
 import {TileTransform} from "../zykloplib/runescape/coordinates/TileTransform"
 import EntityActionMovement = Transportation.EntityActionMovement
+
+export const transportation_rectangle_blacklists: Rectangle[] = [
+    {topleft: {"x": 3904, "y": 4991}, botright: {"x": 5951, "y": 4032}}, // Clan Citadel
+    {topleft: {"x": 64, "y": 5583}, botright: {"x": 255, "y": 4992}}, // Dungeoneering
+    {topleft: {"x": 64, "y": 4863}, botright: {"x": 639, "y": 4224}}, // Dungeoneering
+    {topleft: {"x": 64, "y": 3711}, botright: {"x": 703, "y": 1920}}, // Dungeoneering
+]
 
 export type LocWithUsages = {
     id: number,
@@ -52,6 +59,11 @@ export const transportation_parsers: Parser<any>[] = [
         93922, 93924, 93813, // Doors in the Broken Home mansion
         5002,
         64674, 9323, 35998,
+        37268, 37211, 37212, 57895, 57899, 57903, 57907, // Clan Citadel stairs
+        3626, // Walls in the maze random event
+        29476, 29477, 29478, // Tiles in the vinesweeper minigame
+        85447,
+        112989, // Lava Flow mine
     ]),
     ignore("Closing doors", [
         1240, 1515, 1517, 1520, 1529, 1531,
@@ -66,6 +78,15 @@ export const transportation_parsers: Parser<any>[] = [
     ignore("Agility courses", [
         43595, 64698, 69526, // TODO: Those should probably be parsed as well
     ]),
+    ignore("Not a transportation",
+
+           [
+               // Trees
+               69144, 38760, 70060, 38783, 38785, 1282, 69139, 69142, 58140, 69141, 1276, 70063, 38787, 1278, 1286, 58108, 1289, 58121, 47596, 1291, 58135, 47594, 47598, 4818, 47600, 4820, 38782, 51843, 38786, 69554, 2289, 38788, 58141, 11866, 37477, 38784, 2889, 1283, 58109, 9366, 1383, 9387, 2890, 4060, 69556, 37478, 9355, 70068, 2410, 70071, 42893, 63176, 2887, 9354, 24168, 1284, 58142, 122440, 70066, 110930, 119459, 110926, 119457, 1365, 9388, 46277, 110932, 3300, 37482, 110927, 110928, 16604, 119460, 99822, 110931, 110933, 124998, 37481, 92440, 110929, 2409, 16265, 79813, 107507, 124996, 2411, 28951, 61191, 99823, 107506, 125510, 61192, 77095, 93384, 119458, 125502, 1384, 2023, 41713, 61190, 61193, 93385, 99825, 100637, 122439, 125504, 125506, 3293, 4135, 5904, 32294, 99824, 125514, 1292, 1330, 1331, 1332, 4674, 18137, 28952, 37483, 37654, 37821, 70001, 70002, 70003, 70005, 70099, 87512, 87514, 87516, 87518, 87520, 87522, 87524, 87526, 87528, 87530, 94314, 100261, 111254, 125508, 125512, 125516, 125533,
+               // More Trees
+               38731, 54787, 38732, 38616, 54778, 57964, 38627, 38755, 70057, 57934, 104007, 9036, 104350, 104351, 104352, 111303, 114099, 58006, 104356, 104358, 104348, 37479, 1281, 104357, 92442, 104347, 46275, 104349, 104355, 111302, 111304, 111305, 114098, 114100, 114101, 70076, 11999, 104647, 2210, 70075, 1315, 12000, 46274, 125530, 139, 1309, 37480, 70077, 104353, 111307, 114102, 125518, 125522, 142, 2372, 15062, 43874, 104354, 125520, 125524, 125526, 127400,
+           ],
+    ),
     {
         name: "Single Doors (West)",
         variants: [{
