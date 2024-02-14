@@ -17,10 +17,11 @@ import {getMapsquareData, MapRect, resolveMorphedObject} from "./3d/mapsquare"
 import {collision_file_index_full, create_collision_files} from "./blocking/blocking"
 import {mapsquare_locations} from "../generated/mapsquare_locations"
 import fs from "fs"
-import {getActions, LocWithUsages, transportation_parsers} from "./transportation/parsers"
+import {getActions, LocWithUsages, transportation_parsers, transportation_rectangle_blacklists} from "./transportation/parsers"
 import {floor_t, TileRectangle} from "./zykloplib/runescape/coordinates"
 import {Rectangle} from "./zykloplib/math"
 import {time} from "./zykloplib/util"
+import {act} from "react-dom/test-utils"
 
 const testdecode = command({
                                name: "testdecode",
@@ -338,19 +339,23 @@ const extract_shortcuts = command(
 
                                 const instance = p.instance!!(loc.location, v.extra)
 
-                                let results = loc.uses.flatMap(use => {
-                                    try {
-                                        let result = instance(loc.location, use)
+                                let results = loc.uses
+                                                 .filter(use =>
+                                                             !transportation_rectangle_blacklists.some(blacklist => Rectangle.contains(blacklist, use.box.topleft)),
+                                                 )
+                                                 .flatMap(use => {
+                                                     try {
+                                                         let result = instance(loc.location, use)
 
-                                        if (!Array.isArray(result)) result = [result]
+                                                         if (!Array.isArray(result)) result = [result]
 
-                                        return result
-                                    } catch (e) {
-                                        console.error(`Parser ${p.name} failed!`)
-                                        console.error(e)
-                                        return []
-                                    }
-                                })
+                                                         return result
+                                                     } catch (e) {
+                                                         console.error(`Parser ${p.name} failed!`)
+                                                         console.error(e)
+                                                         return []
+                                                     }
+                                                 })
 
                                 results.forEach(s => s.source_loc = loc_id)
 
@@ -389,17 +394,12 @@ const leridon = command({
                                 }
 
                                 let filter: filter_t = {
-                                    names: ["ladder"],
+                                    //names: ["tree"],
+                                    //option: "Chop down",
                                     without_parser: true,
                                 }
 
                                 let data: Record<number, LocWithUsages> = JSON.parse(fs.readFileSync("locs.json", "utf-8"))
-
-                                console.log(Object.values(data).filter(loc => {
-                                    let actions = getActions(loc.location)
-
-                                    return actions.every(a => a?.name.toLowerCase() == "close")
-                                }).map(loc => loc.id))
 
                                 let filtered = Object.values(data).filter((loc) => {
                                     if (filter.names && !filter.names.some(n => loc.location.name!.toLowerCase().includes(n.toLowerCase()))) return false
@@ -408,10 +408,15 @@ const leridon = command({
                                         return (p.variants && p.variants.some(v => v.for.includes(loc.id))) || (p.for && p.for.includes(loc.id))
                                     })) return false
 
-                                    if (filter.option && !getActions(loc.location).some(a => a?.name.toLowerCase().includes(filter.option!.toLowerCase()))) return false
+                                    const actions = getActions(loc.location)
+
+                                    if (actions.length == 0) return false
+
+                                    if (filter.option && !actions.some(a => a?.name.toLowerCase().includes(filter.option!.toLowerCase()))) return false
 
                                     loc.uses = loc.uses.filter(use => {
                                         return !(filter.area && (!Rectangle.overlaps(filter.area, use.box) || use.plane != filter.area?.level))
+                                            && !transportation_rectangle_blacklists.some(blacklist => Rectangle.contains(blacklist, use.box.topleft))
                                     })
 
                                     return loc.uses.length > 0
@@ -419,7 +424,10 @@ const leridon = command({
                                     return b.uses.length - a.uses.length
                                 })
 
-                                fs.writeFileSync("results.json", JSON.stringify(filtered, null, 2))
+                                //console.log(JSON.stringify(filtered.map(loc => loc.id)))
+                                console.log(`${filtered.length} loc types fit the filter.`)
+
+                                fs.writeFileSync("results.json", JSON.stringify(filtered.slice(0, 30), null, 2))
                             },
                         })
 
