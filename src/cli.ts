@@ -369,7 +369,13 @@ const extract_shortcuts = command(
 
                 console.log(`Extracted a total of ${shortcuts.length} shortcuts!`)
 
-                fs.writeFileSync("shortcuts.json", JSON.stringify(shortcuts, (key, value) => {
+                fs.writeFileSync("D:\\Projekte\\Tools\\mycluesolver\\static\\map\\cache_transportation.json", JSON.stringify(shortcuts, (key, value) => {
+                    if (key.startsWith("_")) return undefined
+
+                    return value
+                }, 2))
+
+                fs.writeFileSync("D:\\Projekte\\Tools\\mycluesolver\\dist\\map\\cache_transportation.json", JSON.stringify(shortcuts, (key, value) => {
                     if (key.startsWith("_")) return undefined
 
                     return value
@@ -387,16 +393,17 @@ const leridon = command({
 
                                 type filter_t = {
                                     names?: string[],
-                                    option?: string,
-                                    area?: TileRectangle,
+                                    actions?: string[],
+                                    area?: Rectangle,
                                     object_id?: number,
                                     without_parser?: boolean
                                 }
 
                                 let filter: filter_t = {
                                     //names: ["tree"],
-                                    //option: "Chop down",
+                                    actions: ["use", "enter", "climb", "crawl", "scale", "pass", "jump"],
                                     without_parser: true,
+                                    area: {"topleft": {"x": 1928, "y": 4088}, "botright": {"x": 3942, "y": 2504}},
                                 }
 
                                 let data: Record<number, LocWithUsages> = JSON.parse(fs.readFileSync("locs.json", "utf-8"))
@@ -408,14 +415,19 @@ const leridon = command({
                                         return (p.variants && p.variants.some(v => v.for.includes(loc.id))) || (p.for && p.for.includes(loc.id))
                                     })) return false
 
-                                    const actions = getActions(loc.location)
 
-                                    if (actions.length == 0) return false
+                                    if (filter.actions != null) {
+                                        const actions = getActions(loc.location)
 
-                                    if (filter.option && !actions.some(a => a?.name.toLowerCase().includes(filter.option!.toLowerCase()))) return false
+                                        if (actions.length == 0) return false
+
+                                        if (!actions.some(a => filter.actions?.some(filter_action =>
+                                                                                        a.name.toLowerCase().includes(filter_action.toLowerCase()),
+                                        ))) return false
+                                    }
 
                                     loc.uses = loc.uses.filter(use => {
-                                        return !(filter.area && (!Rectangle.overlaps(filter.area, use.box) || use.plane != filter.area?.level))
+                                        return !(filter.area && (!Rectangle.overlaps(filter.area, use.box)))
                                             && !transportation_rectangle_blacklists.some(blacklist => Rectangle.contains(blacklist, use.box.topleft))
                                     })
 
@@ -425,7 +437,7 @@ const leridon = command({
                                 })
 
                                 //console.log(JSON.stringify(filtered.map(loc => loc.id)))
-                                console.log(`${filtered.length} loc types fit the filter.`)
+                                console.log(`${filtered.length} loc types with ${filtered.flatMap(f => f.uses).length} total usages fit the filter.`)
 
                                 fs.writeFileSync("results.json", JSON.stringify(filtered.slice(0, 30), null, 2))
                             },
