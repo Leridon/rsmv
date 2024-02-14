@@ -10,12 +10,15 @@ import InteractionType = Path.InteractionType
 import {TileArea} from "../zykloplib/runescape/coordinates/TileArea"
 import {TileTransform} from "../zykloplib/runescape/coordinates/TileTransform"
 import EntityActionMovement = Transportation.EntityActionMovement
+import {number} from "cmd-ts"
 
 export const transportation_rectangle_blacklists: Rectangle[] = [
     {topleft: {"x": 3904, "y": 4991}, botright: {"x": 5951, "y": 4032}}, // Clan Citadel
     {topleft: {"x": 64, "y": 5583}, botright: {"x": 255, "y": 4992}}, // Dungeoneering
     {topleft: {"x": 64, "y": 4863}, botright: {"x": 639, "y": 4224}}, // Dungeoneering
     {topleft: {"x": 64, "y": 3711}, botright: {"x": 703, "y": 1920}}, // Dungeoneering
+    {topleft: {"x": 960, "y": 6847}, botright: {"x": 1151, "y": 6720}}, // Sagas
+    {topleft: {"x": 1856, "y": 5119}, botright: {"x": 1983, "y": 5056}}, // PoH
 ]
 
 export type LocWithUsages = {
@@ -64,6 +67,37 @@ export const transportation_parsers: Parser<any>[] = [
         29476, 29477, 29478, // Tiles in the vinesweeper minigame
         85447,
         112989, // Lava Flow mine
+        85446, 85449,
+        16189, 16187, // Gorak plane
+        17119,
+        15810, // no idea
+        5138, // Some quest
+        95373, // Quest probably
+        20224, 20225, 20244, 20248, 81199,
+        38693,
+        66313, // Some quest area
+        85442, // Battle of lumbridge
+        49089, // Weird inaccessible ladder at the fishing guild
+        1752
+    ]),
+    ignore("Transportations but no parser yet", [
+        77745, // Chaos tunnel portals
+        70480, 70478, 70489, 70491, 70476, 70481, 70490, 70493, // Runespan, potentially easy to parse
+        103472, // Small portal in behind the scenes
+        43595, 64698, 69526, // Agility courses
+        3610, // Rope, maybe works like a ladder
+        29057, 29004, // OoGlog pools
+        119969, // Senntisten
+        116736, // Chaos portal infernal source
+        10782, // Magic Training Arena
+        3309, // underground pass
+        27129, 27130, 27152, // Vine area near shilo
+        91974, 91975, 91972, 91973, // Poison Swamp rocks (should be easy to parse)
+        16005, // rum minigame
+        16947, 16945, //Lunar isle boat stairs
+        83731, // castle wars jumping stones
+        5269, // jumping stones north of morytania herb
+
     ]),
     ignore("Closing doors", [
         1240, 1515, 1517, 1520, 1529, 1531,
@@ -74,9 +108,6 @@ export const transportation_parsers: Parser<any>[] = [
         34353, 34808, 36737, 36912, 36914, 37000,
         37003, 40109, 40185, 45477, 52475, 72005,
         72009, 85009, 85078, 85079, 112223, 112224,
-    ]),
-    ignore("Agility courses", [
-        43595, 64698, 69526, // TODO: Those should probably be parsed as well
     ]),
     ignore("Not a transportation",
 
@@ -222,6 +253,7 @@ export const transportation_parsers: Parser<any>[] = [
             },
         }),
     {
+        name: "Gnome Spiral staircase down",
         for: [69504],
         // TODO: This is broken for some, need to query for 69505 to find where exactly we land
         instance: () => basic_entity_parser({
@@ -236,6 +268,7 @@ export const transportation_parsers: Parser<any>[] = [
                                             }),
     },
     {
+        name: "Gnome Spiral staircase up",
         for: [69505],
         // TODO: This is broken for some, need to query for 69504 to find where exactly we land
         instance: () => basic_entity_parser({
@@ -249,46 +282,117 @@ export const transportation_parsers: Parser<any>[] = [
                                                 }],
                                             }),
     },
+    {
+        name: "Stiles",
+        for: [112215],
+        instance: (loc) => basic_entity_parser({
+                                                   actions: [{
+                                                       time: 7,
+                                                       interactive_area: TileArea.init({x: 0, y: 0, level: 0}, {x: 1, y: 2}),
+                                                       movement: [{
+                                                           offset: {x: 0, y: 1, level: 0},
+                                                           valid_from: TileArea.init({x: 0, y: 0, level: 0}),
+                                                           orientation: "toentitybefore",
+                                                       }, {
+                                                           offset: {x: 0, y: -1, level: 0},
+                                                           valid_from: TileArea.init({x: 0, y: 1, level: 0}),
+                                                           orientation: "toentitybefore",
+                                                       }],
+                                                   }],
+                                               }),
+    },
     ignore("Unsupported ladders", [32015]),
 
-    parser<{ single_side?: direction, move_across?: boolean, dir: "up" | "down" }>(
+    parser<{
+        single_side?: direction, move_across?: boolean,
+        actions: { up?: number, down?: number },
+    }>(
         {
             name: "Ladders",
             variants: [
-                {extra: {dir: "down"}, for: [1746]},
-                {extra: {dir: "up"}, for: [1747]},
+                {extra: {actions: {up: 0}}, for: [1746]},
+                {extra: {actions: {up: 0}}, for: [1747]},
 
-                {extra: {dir: "down", single_side: direction.north}, for: [24355, 36770]},
-                {extra: {dir: "up", single_side: direction.north}, for: [24354, 36768]},
+                {extra: {actions: {down: 0}, single_side: direction.north}, for: [24355, 36770, 34396, 24362]},
+                {extra: {actions: {up: 0}, single_side: direction.north}, for: [24354, 36768, 34394, 69499]},
 
-                {extra: {dir: "down", single_side: direction.north, move_across: true}, for: [17975]},
-                {extra: {dir: "up", single_side: direction.north, move_across: true}, for: [17974]},
+                {extra: {actions: {up: 1, down: 2}, single_side: direction.north}, for: [36769]},
+
+                {extra: {actions: {down: 0}, single_side: direction.east}, for: [4778]},
+                {extra: {actions: {up: 0}, single_side: direction.east}, for: [4772]},
+
+                {extra: {actions: {down: 0}, single_side: direction.south}, for: [10494]},
+                {extra: {actions: {up: 0}, single_side: direction.south}, for: [21395]},
+
+                {extra: {actions: {down: 0}, single_side: direction.north, move_across: true}, for: [17975]},
+                {extra: {actions: {up: 0}, single_side: direction.north, move_across: true}, for: [17974]},
             ],
             instance: (loc, extra) => {
                 const off = extra.single_side && extra.move_across
                     ? Vector2.scale(-2, direction.toVector(extra.single_side))
                     : {x: 0, y: 0}
 
-                const level_off = extra.dir == "up" ? 1 : -1
+                function ladder_action(level_off: 1 | -1, cache_index: number): BasicEntityParserOptions["actions"][number] {
+                    return {
+                        time: 3,
+                        interactive_area: extra.single_side
+                            ? TileArea.init({...direction.toVector(extra.single_side), level: 0})
+                            : undefined,
+                        cache_index: cache_index,
+                        movement: [{
+                            offset: {...off, level: level_off},
+                            orientation: "toentitybefore",
+                        }],
+                    }
+                }
 
-                return basic_entity_parser({
-                                               actions: [{
-                                                   time: 3,
-                                                   interactive_area: extra.single_side
-                                                       ? TileArea.init({...direction.toVector(extra.single_side), level: 0})
-                                                       : undefined,
-                                                   movement: [{
-                                                       offset: {...off, level: level_off},
-                                                       orientation: "toentitybefore",
-                                                   }],
-                                               }],
-                                           })
+                return basic_entity_parser(
+                    {
+                        actions: [
+                            extra.actions.up != null ? ladder_action(1, extra.actions.up) : undefined,
+                            extra.actions.down != null ? ladder_action(-1, extra.actions.down) : undefined,
+                        ].filter(a => !!a).map(a => a!),
+                    })
             },
         }),
+    parser<{
+        level: 1 | -1,
+        length?: number
+    }>({
+           name: "Simple Staircases",
+           variants: [
+               {for: [45483, 2347], extra: {level: 1}},
+               {for: [45484, 2348], extra: {level: -1}},
+
+               {for: [24359], extra: {level: -1, length: 3}},
+           ],
+           instance: (loc, extra) => {
+               return basic_entity_parser({
+                                              actions: [{
+                                                  cache_index: 0,
+                                                  interactive_area: {
+                                                      origin: (extra.level > 0)
+                                                          ? {x: 0, y: 2, level: 0}
+                                                          : {x: 0, y: -1, level: 0},
+                                                  },
+                                                  movement: [{
+                                                      offset: {x: 0, y: -extra.level * ((extra.length ?? loc.length ?? 1) + 1), level: extra.level},
+                                                      orientation: "toentitybefore",
+                                                  }],
+                                                  time: 3,
+                                              },
+                                              ],
+                                          },
+               )
+           },
+       }),
 ]
 
-export function getActions(loc: objects) {
-    return [0, 1, 2, 3, 4].map(i => getAction(loc, i)).filter(a => !!a)
+export function getActions(loc: objects): {
+    name: string,
+    cursor: InteractionType
+}[] {
+    return [0, 1, 2, 3, 4].map(i => getAction(loc, i)).filter(a => a != null).map(a => a!)
 }
 
 function getAction(loc: objects, index: number = 0): {
@@ -305,7 +409,7 @@ function getAction(loc: objects, index: number = 0): {
     }
 }
 
-function basic_entity_parser(options: {
+export type BasicEntityParserOptions = {
     name?: string,
     plane_offset?: number,
     actions: {
@@ -316,7 +420,9 @@ function basic_entity_parser(options: {
         name?: string,
         cursor?: InteractionType
     }[]
-}): (loc: objects, use: LocWithUsages["uses"][number]) => transportation[] | transportation {
+}
+
+function basic_entity_parser(options: BasicEntityParserOptions): (loc: objects, use: LocWithUsages["uses"][number]) => transportation[] | transportation {
     return (entity, use) => {
         const origin = TileRectangle.bl(use.box)
 
@@ -344,7 +450,7 @@ function basic_entity_parser(options: {
         // Apply rotation
         if (use.rotation != 0) {
             transport = Transportation.transform(transport, TileTransform.normalize(
-                Transform.rotation((4 - use.rotation) % 4),
+                Transform.rotation((4 - use.rotation) % 4), // Cache rotation is clockwise, while Transform.rotation is counterclockwise
             ))
         }
 
