@@ -17,228 +17,232 @@ import {getMapsquareData, MapRect, resolveMorphedObject} from "./3d/mapsquare"
 import {collision_file_index_full, create_collision_files} from "./blocking/blocking"
 import {mapsquare_locations} from "../generated/mapsquare_locations"
 import fs from "fs"
-import {getActions, LocWithUsages, transportation_parsers, transportation_rectangle_blacklists} from "./transportation/parsers"
+import {transportation_parsers, transportation_rectangle_blacklists} from "./transportation/parsers"
 import {floor_t, TileRectangle} from "./zykloplib/runescape/coordinates"
 import {Rectangle} from "./zykloplib/math"
 import {time} from "./zykloplib/util"
 import {act} from "react-dom/test-utils"
+import {LocUtil} from "./transportation/util/LocUtil";
+import LocWithUsages = LocUtil.LocWithUsages;
+import getActions = LocUtil.getActions;
+import {parsers2} from "./transportation/parsers2";
 
 const testdecode = command({
-                               name: "testdecode",
-                               args: {
-                                   ...filesource,
-                                   ...filerange,
-                                   save: option({long: "save", short: "s", type: cmdts.string, defaultValue: () => "cache-errors"}),
-                                   mode: option({long: "mode", short: "m"}),
-                               },
-                               handler: async (args) => {
-                                   let errdir      = new CLIScriptFS(args.save)
-                                   let olderrfiles = await errdir.readDir(".")
-                                   if (olderrfiles.find(q => !q.match(/^(err|pass|fail)-/))) {
-                                       throw new Error("file not starting with 'err' in error dir")
-                                   }
-                                   await Promise.all(olderrfiles.map(q => errdir.unlink(q)))
+    name: "testdecode",
+    args: {
+        ...filesource,
+        ...filerange,
+        save: option({long: "save", short: "s", type: cmdts.string, defaultValue: () => "cache-errors"}),
+        mode: option({long: "mode", short: "m"}),
+    },
+    handler: async (args) => {
+        let errdir = new CLIScriptFS(args.save)
+        let olderrfiles = await errdir.readDir(".")
+        if (olderrfiles.find(q => !q.match(/^(err|pass|fail)-/))) {
+            throw new Error("file not starting with 'err' in error dir")
+        }
+        await Promise.all(olderrfiles.map(q => errdir.unlink(q)))
 
-                                   let output = new CLIScriptOutput()
-                                   let source = await args.source()
-                                   let mode   = cacheFileJsonModes[args.mode]
-                                   if (!mode) { throw new Error(`mode ${args.mode} not found, possible modes: ${Object.keys(cacheFileJsonModes).join(", ")}`) }
-                                   let opts     = defaultTestDecodeOpts()
-                                   opts.outmode = "hextext"
-                                   opts.maxerrs = 500
-                                   await output.run(testDecode, errdir, source, mode, args.files, opts)
-                               },
-                           })
+        let output = new CLIScriptOutput()
+        let source = await args.source()
+        let mode = cacheFileJsonModes[args.mode]
+        if (!mode) { throw new Error(`mode ${args.mode} not found, possible modes: ${Object.keys(cacheFileJsonModes).join(", ")}`) }
+        let opts = defaultTestDecodeOpts()
+        opts.outmode = "hextext"
+        opts.maxerrs = 500
+        await output.run(testDecode, errdir, source, mode, args.files, opts)
+    },
+})
 
 const historicdecode = command({
-                                   name: "historicdecode",
-                                   args: {
-                                       ...filesource,
-                                       skipcurrent: flag({long: "skipcurrent", short: "p", description: "skip current cache"}),
-                                       before: option({long: "before", short: "t", defaultValue: () => ""}),
-                                       maxchecks: option({long: "maxchecks", short: "n", type: cmdts.number, defaultValue: () => 0}),
-                                   },
-                                   async handler(args) {
-                                       let startcache = await args.source()
-                                       let output     = new CLIScriptOutput()
-                                       let fs         = new CLIScriptFS("./cache-histerr")
-                                       await output.run(testDecodeHistoric, fs, startcache, args.before, args.maxchecks)
-                                   },
-                               })
+    name: "historicdecode",
+    args: {
+        ...filesource,
+        skipcurrent: flag({long: "skipcurrent", short: "p", description: "skip current cache"}),
+        before: option({long: "before", short: "t", defaultValue: () => ""}),
+        maxchecks: option({long: "maxchecks", short: "n", type: cmdts.number, defaultValue: () => 0}),
+    },
+    async handler(args) {
+        let startcache = await args.source()
+        let output = new CLIScriptOutput()
+        let fs = new CLIScriptFS("./cache-histerr")
+        await output.run(testDecodeHistoric, fs, startcache, args.before, args.maxchecks)
+    },
+})
 
 const extract = command({
-                            name: "extract",
-                            args: {
-                                ...filesource,
-                                ...filerange,
-                                save: option({long: "save", short: "s", type: cmdts.string, defaultValue: () => "extract"}),
-                                mode: option({long: "mode", short: "m", type: cmdts.string, defaultValue: () => "bin"}),
-                                edit: flag({long: "edit", short: "e"}),
-                                skipread: flag({long: "noread", short: "n"}),
-                                fixhash: flag({long: "fixhash", short: "h"}),
-                                batched: flag({long: "batched", short: "b"}),
-                                batchlimit: option({long: "batchsize", type: cmdts.number, defaultValue: () => -1}),
-                                keepbuffers: flag({long: "keepbuffers"}),
-                            },
-                            async handler(args) {
+    name: "extract",
+    args: {
+        ...filesource,
+        ...filerange,
+        save: option({long: "save", short: "s", type: cmdts.string, defaultValue: () => "extract"}),
+        mode: option({long: "mode", short: "m", type: cmdts.string, defaultValue: () => "bin"}),
+        edit: flag({long: "edit", short: "e"}),
+        skipread: flag({long: "noread", short: "n"}),
+        fixhash: flag({long: "fixhash", short: "h"}),
+        batched: flag({long: "batched", short: "b"}),
+        batchlimit: option({long: "batchsize", type: cmdts.number, defaultValue: () => -1}),
+        keepbuffers: flag({long: "keepbuffers"}),
+    },
+    async handler(args) {
 
-                                let orig_save = args.save || "extract"
+        let orig_save = args.save || "extract"
 
-                                if (args.mode == "*") {
-                                    for (let key in cacheFileDecodeModes) {
-                                        args.mode = key
-                                        args.save = orig_save + "\\" + key
-                                        try {
-                                            let source = await args.source({writable: args.edit})
-                                            let outdir = new CLIScriptFS(args.save)
-                                            let output = new CLIScriptOutput()
+        if (args.mode == "*") {
+            for (let key in cacheFileDecodeModes) {
+                args.mode = key
+                args.save = orig_save + "\\" + key
+                try {
+                    let source = await args.source({writable: args.edit})
+                    let outdir = new CLIScriptFS(args.save)
+                    let output = new CLIScriptOutput()
 
-                                            console.log(key)
-                                            await output.run(extractCacheFiles, outdir, source, args)
+                    console.log(key)
+                    await output.run(extractCacheFiles, outdir, source, args)
 
-                                            source.close()
-                                        } catch (e) {
-                                            console.log(e)
-                                        }
-                                    }
-                                } else {
-                                    let source = await args.source({writable: args.edit})
-                                    let outdir = new CLIScriptFS(args.save)
-                                    let output = new CLIScriptOutput()
-                                    await output.run(extractCacheFiles, outdir, source, args)
+                    source.close()
+                } catch (e) {
+                    console.log(e)
+                }
+            }
+        } else {
+            let source = await args.source({writable: args.edit})
+            let outdir = new CLIScriptFS(args.save)
+            let output = new CLIScriptOutput()
+            await output.run(extractCacheFiles, outdir, source, args)
 
-                                    source.close()
-                                }
-                            },
-                        })
+            source.close()
+        }
+    },
+})
 
 
 const filehist = command({
-                             name: "filehist",
-                             args: {
-                                 id: option({long: "id", short: "i", type: cmdts.string}),
-                                 save: option({long: "save", short: "s", type: cmdts.string, defaultValue: () => "extract"}),
-                                 mode: option({long: "mode", short: "m", type: cmdts.string, defaultValue: () => "bin"}),
-                             },
-                             async handler(args) {
-                                 let outdir = new CLIScriptFS(args.save)
-                                 let output = new CLIScriptOutput()
-                                 if (!cacheFileDecodeModes[args.mode]) { throw new Error("unkown mode") }
+    name: "filehist",
+    args: {
+        id: option({long: "id", short: "i", type: cmdts.string}),
+        save: option({long: "save", short: "s", type: cmdts.string, defaultValue: () => "extract"}),
+        mode: option({long: "mode", short: "m", type: cmdts.string, defaultValue: () => "bin"}),
+    },
+    async handler(args) {
+        let outdir = new CLIScriptFS(args.save)
+        let output = new CLIScriptOutput()
+        if (!cacheFileDecodeModes[args.mode]) { throw new Error("unkown mode") }
 
-                                 let id = args.id.split(".").map(q => +q)
-                                 if (id.length == 0 || id.some(q => isNaN(q))) { throw new Error("invalid id") }
-                                 await output.run(fileHistory, outdir, args.mode as any, id, null, null)
-                             },
-                         })
+        let id = args.id.split(".").map(q => +q)
+        if (id.length == 0 || id.some(q => isNaN(q))) { throw new Error("invalid id") }
+        await output.run(fileHistory, outdir, args.mode as any, id, null, null)
+    },
+})
 
 const edit = command({
-                         name: "edit",
-                         args: {
-                             ...filesource,
-                             diffdir: option({long: "diffdir", short: "d", type: cmdts.string}),
-                         },
-                         async handler(args) {
-                             let diffdir = new CLIScriptFS(args.diffdir)
-                             let output  = new CLIScriptOutput()
-                             let source  = await args.source({writable: true})
-                             await output.run(writeCacheFiles, source, diffdir)
-                             source.close()
-                         },
-                     })
+    name: "edit",
+    args: {
+        ...filesource,
+        diffdir: option({long: "diffdir", short: "d", type: cmdts.string}),
+    },
+    async handler(args) {
+        let diffdir = new CLIScriptFS(args.diffdir)
+        let output = new CLIScriptOutput()
+        let source = await args.source({writable: true})
+        await output.run(writeCacheFiles, source, diffdir)
+        source.close()
+    },
+})
 
 const indexoverview = command({
-                                  name: "run",
-                                  args: {
-                                      ...filesource,
-                                  },
-                                  handler: async (args) => {
-                                      let source = await args.source()
-                                      let output = new CLIScriptOutput()
-                                      let outdir = new CLIScriptFS(".")
-                                      await output.run(indexOverview, outdir, source)
-                                  },
-                              })
+    name: "run",
+    args: {
+        ...filesource,
+    },
+    handler: async (args) => {
+        let source = await args.source()
+        let output = new CLIScriptOutput()
+        let outdir = new CLIScriptFS(".")
+        await output.run(indexOverview, outdir, source)
+    },
+})
 
 const diff = command({
-                         name: "run",
-                         args: {
-                             ...filerange,
-                             a: option({long: "cache1", short: "a", type: ReadCacheSource}),
-                             b: option({long: "cache2", short: "b", type: ReadCacheSource}),
-                             out: option({long: "out", short: "s", type: cmdts.string}),
-                         },
-                         handler: async (args) => {
-                             let sourcea = await args.a()
-                             let sourceb = await args.b()
+    name: "run",
+    args: {
+        ...filerange,
+        a: option({long: "cache1", short: "a", type: ReadCacheSource}),
+        b: option({long: "cache2", short: "b", type: ReadCacheSource}),
+        out: option({long: "out", short: "s", type: cmdts.string}),
+    },
+    handler: async (args) => {
+        let sourcea = await args.a()
+        let sourceb = await args.b()
 
-                             let outdir = new CLIScriptFS(args.out)
-                             let output = new CLIScriptOutput()
-                             await output.run(diffCaches, outdir, sourcea, sourceb, args.files)
+        let outdir = new CLIScriptFS(args.out)
+        let output = new CLIScriptOutput()
+        await output.run(diffCaches, outdir, sourcea, sourceb, args.files)
 
-                             sourcea.close()
-                             sourceb.close()
-                         },
-                     })
+        sourcea.close()
+        sourceb.close()
+    },
+})
 
 const quickchat = command({
-                              name: "run",
-                              args: {
-                                  ...filesource,
-                              },
-                              handler: async (args) => {
-                                  let output = new CLIScriptOutput()
-                                  let outdir = new CLIScriptFS(".")
-                                  let source = await args.source()
-                                  output.run(quickChatLookup, outdir, source)
-                                  source.close()
-                              },
-                          })
+    name: "run",
+    args: {
+        ...filesource,
+    },
+    handler: async (args) => {
+        let output = new CLIScriptOutput()
+        let outdir = new CLIScriptFS(".")
+        let source = await args.source()
+        output.run(quickChatLookup, outdir, source)
+        source.close()
+    },
+})
 
 const scrapeavatars = command({
-                                  name: "run",
-                                  args: {
-                                      ...filesource,
-                                      save: option({long: "save", short: "s"}),
-                                      skip: option({long: "skip", short: "i", type: cmdts.number, defaultValue: () => 0}),
-                                      max: option({long: "max", short: "m", type: cmdts.number, defaultValue: () => 500}),
-                                      json: flag({long: "json", short: "j"}),
-                                  },
-                                  handler: async (args) => {
-                                      let outdir = new CLIScriptFS(args.save)
-                                      let output = new CLIScriptOutput()
-                                      let source = (args.json ? await args.source() : null)
-                                      await output.run(scrapePlayerAvatars, outdir, source, args.skip, args.max, args.json)
-                                  },
-                              })
+    name: "run",
+    args: {
+        ...filesource,
+        save: option({long: "save", short: "s"}),
+        skip: option({long: "skip", short: "i", type: cmdts.number, defaultValue: () => 0}),
+        max: option({long: "max", short: "m", type: cmdts.number, defaultValue: () => 500}),
+        json: flag({long: "json", short: "j"}),
+    },
+    handler: async (args) => {
+        let outdir = new CLIScriptFS(args.save)
+        let output = new CLIScriptOutput()
+        let source = (args.json ? await args.source() : null)
+        await output.run(scrapePlayerAvatars, outdir, source, args.skip, args.max, args.json)
+    },
+})
 
 const openrs2ids = command({
-                               name: "openrs2ids",
-                               args: {
-                                   date: option({long: "year", short: "d", defaultValue: () => ""}),
-                                   near: option({long: "near", short: "n", defaultValue: () => ""}),
-                                   full: flag({long: "full", short: "f"}),
-                               },
-                               async handler(args) {
-                                   let output = new CLIScriptOutput()
-                                   await output.run(openrs2Ids, args.date, args.near, args.full)
-                               },
-                           })
+    name: "openrs2ids",
+    args: {
+        date: option({long: "year", short: "d", defaultValue: () => ""}),
+        near: option({long: "near", short: "n", defaultValue: () => ""}),
+        full: flag({long: "full", short: "f"}),
+    },
+    async handler(args) {
+        let output = new CLIScriptOutput()
+        await output.run(openrs2Ids, args.date, args.near, args.full)
+    },
+})
 
 const collisions = command({
-                               name: "collisions",
-                               args: {
-                                   ...filesource,
-                                   save: option({long: "save", short: "s", type: cmdts.string, defaultValue: () => "collisions"}),
-                               },
-                               async handler(args) {
-                                   let filesource = await args.source()
-                                   let cache      = await EngineCache.create(filesource)
+    name: "collisions",
+    args: {
+        ...filesource,
+        save: option({long: "save", short: "s", type: cmdts.string, defaultValue: () => "collisions"}),
+    },
+    async handler(args) {
+        let filesource = await args.source()
+        let cache = await EngineCache.create(filesource)
 
-                                   let output = new CLIScriptOutput()
+        let output = new CLIScriptOutput()
 
-                                   await output.run(create_collision_files, cache, collision_file_index_full(args.save))
-                               },
-                           })
+        await output.run(create_collision_files, cache, collision_file_index_full(args.save))
+    },
+})
 
 async function iterate_chunks(rect: MapRect | null = null, f: (x: number, y: number) => Promise<void> | void): Promise<void> {
     if (!rect) rect = {
@@ -253,61 +257,64 @@ async function iterate_chunks(rect: MapRect | null = null, f: (x: number, y: num
 }
 
 const locs = command({
-                         name: "locs",
-                         args: {
-                             ...filesource,
-                         },
-                         async handler(args) {
-                             let filesource = await args.source()
-                             let cache      = await EngineCache.create(filesource)
+    name: "locs",
+    args: {
+        ...filesource,
+    },
+    async handler(args) {
+        let filesource = await args.source()
+        let cache = await EngineCache.create(filesource)
 
-                             let all: Map<number, LocWithUsages> = new Map()
+        let all: Map<number, LocWithUsages> = new Map()
 
-                             async function uses(tile_rect: MapRect, loc: mapsquare_locations["locations"][number]): Promise<void> {
-                                 let resolved = (await resolveMorphedObject(cache, loc.id)).morphedloc
+        async function uses(tile_rect: MapRect, loc: mapsquare_locations["locations"][number]): Promise<void> {
+            let resolved = (await resolveMorphedObject(cache, loc.id)).morphedloc
 
-                                 if (!resolved.name) return
-                                 if (!resolved.actions_0) return
+            if (!resolved.name) return
+            if (!resolved.actions_0) return
 
-                                 const uses: LocWithUsages["uses"] = loc.uses.map(use => {
-                                     let [width, height] = use.rotation % 2 == 0
-                                         ? [resolved.width ?? 1, resolved.length ?? 1]
-                                         : [resolved.length ?? 1, resolved.width ?? 1]
+            const uses: LocWithUsages["uses"] = loc.uses.map(use => {
+                let [width, height] = use.rotation % 2 == 0
+                    ? [resolved.width ?? 1, resolved.length ?? 1]
+                    : [resolved.length ?? 1, resolved.width ?? 1]
 
 
-                                     return ({
-                                         ...use,
-                                         box: TileRectangle.lift(
-                                             Rectangle.from(
-                                                 {x: tile_rect.x + use.x, y: tile_rect.z + use.y},
-                                                 {x: tile_rect.x + use.x + width - 1, y: tile_rect.z + use.y + height - 1},
-                                             ),
-                                             use.plane as floor_t,
-                                         ),
-                                     })
-                                 })
+                const box = TileRectangle.lift(
+                    Rectangle.from(
+                        {x: tile_rect.x + use.x, y: tile_rect.z + use.y},
+                        {x: tile_rect.x + use.x + width - 1, y: tile_rect.z + use.y + height - 1},
+                    ),
+                    use.plane as floor_t,
+                )
 
-                                 const el = all.get(loc.id)
+                return ({
+                    ...use,
+                    box: box,
+                    origin: TileRectangle.bl(box),
+                })
+            })
 
-                                 if (el) el.uses.push(...uses)
-                                 else all.set(loc.id, {id: loc.id, uses: uses, location: resolved})
-                             }
+            const el = all.get(loc.id)
 
-                             let area: MapRect | null = null // {x: 20, z: 20, xsize: 30, zsize: 30}
+            if (el) el.uses.push(...uses)
+            else all.set(loc.id, {id: loc.id, uses: uses, location: resolved})
+        }
 
-                             await time("Collecting Locs", async () => {
-                                 await iterate_chunks(area, async (x, y) => {
-                                     const data = await getMapsquareData(cache, x, y)
+        let area: MapRect | null = null // {x: 20, z: 20, xsize: 30, zsize: 30}
 
-                                     if (data) data.rawlocs.forEach(loc => uses(data.tilerect, loc))
-                                 })
-                             })
+        await time("Collecting Locs", async () => {
+            await iterate_chunks(area, async (x, y) => {
+                const data = await getMapsquareData(cache, x, y)
 
-                             let out = JSON.stringify(Object.fromEntries(Array.from(all.keys()).map(k => [k, all.get(k)])), null, 4)
+                if (data) data.rawlocs.forEach(loc => uses(data.tilerect, loc))
+            })
+        })
 
-                             fs.writeFileSync("locs.json", out)
-                         },
-                     })
+        let out = JSON.stringify(Object.fromEntries(Array.from(all.keys()).map(k => [k, all.get(k)])), null, 4)
+
+        fs.writeFileSync("locs.json", out)
+    },
+})
 
 const extract_shortcuts = command(
     {
@@ -340,22 +347,22 @@ const extract_shortcuts = command(
                                 const instance = p.instance!!(loc.location, v.extra)
 
                                 let results = loc.uses
-                                                 .filter(use =>
-                                                             !transportation_rectangle_blacklists.some(blacklist => Rectangle.contains(blacklist, use.box.topleft)),
-                                                 )
-                                                 .flatMap(use => {
-                                                     try {
-                                                         let result = instance(loc.location, use)
+                                    .filter(use =>
+                                        !transportation_rectangle_blacklists.some(blacklist => Rectangle.contains(blacklist, use.box.topleft)),
+                                    )
+                                    .flatMap(use => {
+                                        try {
+                                            let result = instance(loc.location, use)
 
-                                                         if (!Array.isArray(result)) result = [result]
+                                            if (!Array.isArray(result)) result = [result]
 
-                                                         return result
-                                                     } catch (e) {
-                                                         console.error(`Parser ${p.name} failed!`)
-                                                         console.error(e)
-                                                         return []
-                                                     }
-                                                 })
+                                            return result
+                                        } catch (e) {
+                                            console.error(`Parser ${p.name} failed!`)
+                                            console.error(e)
+                                            return []
+                                        }
+                                    })
 
                                 results.forEach(s => s.source_loc = loc_id)
 
@@ -384,84 +391,128 @@ const extract_shortcuts = command(
         },
     })
 
+const extract_shortcuts2 = command(
+    {
+        name: "shortcuts2",
+        args: {},
+        async handler(args) {
+
+            let data: Record<number, LocWithUsages> = JSON.parse(fs.readFileSync("locs.json", "utf-8"))
+
+            await time("Shortcuts", () => {
+                let shortcuts = parsers2
+                    .flatMap(p => {
+
+                        return p.locs.flatMap(l =>
+                            l.for.flatMap(loc_id => {
+                                let loc: LocWithUsages = data[loc_id]
+
+                                const instances = p.gather(loc)
+
+                                console.log(`Loc ${loc_id}: Extracted ${instances.length} (by parser '${p._name}')`)
+
+                                return instances
+                            })
+                        )
+                    })
+
+                console.log(`Extracted a total of ${shortcuts.length} shortcuts!`)
+
+                fs.writeFileSync("D:\\Projekte\\Tools\\mycluesolver\\static\\map\\cache_transportation.json", JSON.stringify(shortcuts, (key, value) => {
+                    if (key.startsWith("_")) return undefined
+
+                    return value
+                }, 2))
+
+                fs.writeFileSync("D:\\Projekte\\Tools\\mycluesolver\\dist\\map\\cache_transportation.json", JSON.stringify(shortcuts, (key, value) => {
+                    if (key.startsWith("_")) return undefined
+
+                    return value
+                }, 2))
+            })
+        },
+    })
+
 const leridon = command({
-                            name: "leridon",
-                            args: {
-                                ...filesource,
-                            },
-                            async handler(args) {
+    name: "leridon",
+    args: {
+        ...filesource,
+    },
+    async handler(args) {
 
-                                type filter_t = {
-                                    names?: string[],
-                                    actions?: string[],
-                                    area?: Rectangle,
-                                    object_id?: number,
-                                    without_parser?: boolean
-                                }
+        type filter_t = {
+            names?: string[],
+            actions?: string[],
+            area?: Rectangle,
+            object_id?: number,
+            without_parser?: boolean
+        }
 
-                                let filter: filter_t = {
-                                    //names: ["tree"],
-                                    actions: ["use", "enter", "climb", "crawl", "scale", "pass", "jump"],
-                                    without_parser: true,
-                                    area: {"topleft": {"x": 1928, "y": 4088}, "botright": {"x": 3942, "y": 2504}},
-                                }
+        let filter: filter_t = {
+            //names: ["tree"],
+            actions: ["use", "enter", "climb", "crawl", "scale", "pass", "jump"],
+            without_parser: true,
+            object_id: 34395,
+            //area: {"topleft":{"x":2794,"y":3621},"botright":{"x":2803,"y":3610}},
+        }
 
-                                let data: Record<number, LocWithUsages> = JSON.parse(fs.readFileSync("locs.json", "utf-8"))
+        let data: Record<number, LocWithUsages> = JSON.parse(fs.readFileSync("locs.json", "utf-8"))
 
-                                let filtered = Object.values(data).filter((loc) => {
-                                    if (filter.names && !filter.names.some(n => loc.location.name!.toLowerCase().includes(n.toLowerCase()))) return false
-                                    if (filter.object_id && loc.id != filter.object_id) return false
-                                    if (filter.without_parser && transportation_parsers.some(p => {
-                                        return (p.variants && p.variants.some(v => v.for.includes(loc.id))) || (p.for && p.for.includes(loc.id))
-                                    })) return false
+        let filtered = Object.values(data).filter((loc) => {
+            if (filter.names && !filter.names.some(n => loc.location.name!.toLowerCase().includes(n.toLowerCase()))) return false
+            if (filter.object_id && loc.id != filter.object_id) return false
+            if (filter.without_parser && transportation_parsers.some(p => {
+                return (p.variants && p.variants.some(v => v.for.includes(loc.id))) || (p.for && p.for.includes(loc.id))
+            })) return false
 
 
-                                    if (filter.actions != null) {
-                                        const actions = getActions(loc.location)
+            if (filter.actions != null) {
+                const actions = getActions(loc.location)
 
-                                        if (actions.length == 0) return false
+                if (actions.length == 0) return false
 
-                                        if (!actions.some(a => filter.actions?.some(filter_action =>
-                                                                                        a.name.toLowerCase().includes(filter_action.toLowerCase()),
-                                        ))) return false
-                                    }
+                if (!actions.some(a => filter.actions?.some(filter_action =>
+                    a.name.toLowerCase().includes(filter_action.toLowerCase()),
+                ))) return false
+            }
 
-                                    loc.uses = loc.uses.filter(use => {
-                                        return !(filter.area && (!Rectangle.overlaps(filter.area, use.box)))
-                                            && !transportation_rectangle_blacklists.some(blacklist => Rectangle.contains(blacklist, use.box.topleft))
-                                    })
+            loc.uses = loc.uses.filter(use => {
+                return !(filter.area && (!Rectangle.overlaps(filter.area, use.box)))
+                    && !transportation_rectangle_blacklists.some(blacklist => Rectangle.contains(blacklist, use.box.topleft))
+            })
 
-                                    return loc.uses.length > 0
-                                }).sort((a, b) => {
-                                    return b.uses.length - a.uses.length
-                                })
+            return loc.uses.length > 0
+        }).sort((a, b) => {
+            return b.uses.length - a.uses.length
+        })
 
-                                //console.log(JSON.stringify(filtered.map(loc => loc.id)))
-                                console.log(`${filtered.length} loc types with ${filtered.flatMap(f => f.uses).length} total usages fit the filter.`)
+        //console.log(JSON.stringify(filtered.map(loc => loc.id)))
+        console.log(`${filtered.length} loc types with ${filtered.flatMap(f => f.uses).length} total usages fit the filter.`)
 
-                                fs.writeFileSync("results.json", JSON.stringify(filtered.slice(0, 30), null, 2))
-                            },
-                        })
+        fs.writeFileSync("results.json", JSON.stringify(filtered.slice(0, 30), null, 2))
+    },
+})
 
 let subcommands = cmdts.subcommands({
-                                        name: "cache tools cli",
-                                        cmds: {
-                                            collisions,
-                                            extract,
-                                            indexoverview,
-                                            testdecode,
-                                            diff,
-                                            quickchat,
-                                            scrapeavatars,
-                                            edit,
-                                            historicdecode,
-                                            openrs2ids,
-                                            filehist,
-                                            cluecoords,
-                                            leridon,
-                                            locs,
-                                            shortcuts: extract_shortcuts,
-                                        },
-                                    })
+    name: "cache tools cli",
+    cmds: {
+        collisions,
+        extract,
+        indexoverview,
+        testdecode,
+        diff,
+        quickchat,
+        scrapeavatars,
+        edit,
+        historicdecode,
+        openrs2ids,
+        filehist,
+        cluecoords,
+        leridon,
+        locs,
+        shortcuts: extract_shortcuts,
+        shortcuts2: extract_shortcuts2
+    },
+})
 
 cmdts.run(subcommands, cliArguments())

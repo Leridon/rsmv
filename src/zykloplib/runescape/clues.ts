@@ -65,7 +65,7 @@ export namespace ClueType {
 }
 
 export namespace Clues {
-    import InteractionType = Path.InteractionType;
+    import InteractionType = Path.CursorType;
     export type Challenge =
         { type: "wizard" } |
         { type: "slider" } |

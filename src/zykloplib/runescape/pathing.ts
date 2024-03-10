@@ -5,8 +5,8 @@ import {TileCoordinates} from "./coordinates";
 import {Transportation} from "./transportation"
 
 export namespace Path {
-    import entity_transportation = Transportation.entity_transportation
-    export type InteractionType =
+    import EntityTransportation = Transportation.EntityTransportation
+    export type CursorType =
         "generic"
         | "chop"
         | "talk"
@@ -48,9 +48,9 @@ export namespace Path {
         mobile_perk?: boolean,
     }
 
-    export namespace InteractionType {
+    export namespace CursorType {
 
-        export type Meta = { type: InteractionType, icon_url: string, description: string, short_icon: string }
+        export type Meta = { type: CursorType, icon_url: string, description: string, short_icon: string }
 
         export function all(): Meta[] {
             return [
@@ -89,11 +89,11 @@ export namespace Path {
             ]
         }
 
-        export function meta(type: InteractionType): Meta {
+        export function meta(type: CursorType): Meta {
             return all().find(s => s.type == type)!!
         }
 
-        export function defaultEntity(type: InteractionType): entity {
+        export function defaultEntity(type: CursorType): EntityName {
             switch (type) {
                 case "generic":
                 case "spellonentity":
@@ -144,7 +144,7 @@ export namespace Path {
         }
 
         export function fromCacheCursor(id: number | null | undefined) {
-            const table: Record<number, InteractionType> = {
+            const table: Record<number, CursorType> = {
                 0: "generic",
                 44: "talk",
                 49: "open",
@@ -160,11 +160,13 @@ export namespace Path {
 
     }
 
-    export type EntityKind = "npc" | "static" | "item"
-
-    export type entity = {
+    export type EntityName = {
         name: string,
-        kind: EntityKind
+        kind: EntityName.Kind
+    }
+
+    export namespace EntityName {
+        export type Kind = "npc" | "static" | "item"
     }
 
     type step_base = {
@@ -180,7 +182,7 @@ export namespace Path {
     export type step_ability = step_base & {
         type: "ability",
         ability: movement_ability,
-        target?: entity,
+        target?: EntityName,
         target_text?: string,
         from: TileCoordinates,
         to: TileCoordinates,
@@ -205,20 +207,20 @@ export namespace Path {
         starts: TileCoordinates,
         ends_up: TileCoordinates,
         forced_direction: direction
-        how: InteractionType
+        how: CursorType
     }
 
     export type step_shortcut = step_base & {
         type: "shortcut_v2",
         assumed_start: TileCoordinates,
-        internal: entity_transportation
+        internal: EntityTransportation
     }
 
     export type step_redclick = step_base & {
         type: "redclick",
-        target: entity,
+        target: EntityName,
         where: TileCoordinates,
-        how: InteractionType
+        how: CursorType
     }
 
     export type step_powerburst = step_base & {
