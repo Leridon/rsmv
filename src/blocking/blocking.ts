@@ -1,11 +1,11 @@
 import * as fs from 'fs'
 import Jimp from "jimp"
 import * as pako from "pako"
-import {ChunkData, classicChunkSize, getMapsquareData, MapRect, ParsemapOpts, parseMapsquare, rs2ChunkSize, TileGrid, TileProps} from "../3d/mapsquare"
+import {ChunkData, classicChunkSize, getMapsquareData, MapRect, mapsquareObjects, ParsemapOpts, parseMapsquare, rs2ChunkSize, TileGrid, TileProps} from "../3d/mapsquare"
 import {EngineCache} from "../3d/modeltothree"
 import {ScriptOutput} from "../scriptrunner"
 import path from "path"
-import { Vector2 } from 'zykloplib/math/Vector2'
+import {Vector2} from 'zykloplib/math/Vector2'
 import {direction} from "../zykloplib/runescape/movement"
 import center = direction.center
 import east = direction.east
@@ -17,6 +17,45 @@ import southwest = direction.southwest
 import northwest = direction.northwest
 import northeast = direction.northeast
 import {time} from "../zykloplib/util"
+import {TileRectangle} from "../zykloplib/runescape/coordinates";
+import tr = TileRectangle.tr;
+import {classicModifyTileGrid} from "../3d/classicmap";
+
+export async function parseMapsquares(engine: EngineCache, rect: MapRect, opts?: ParsemapOpts) {
+    let chunkfloorpadding = (opts?.padfloor ? 20 : 0);//TODO same as max(blending kernel,max loc size), put this in a const somewhere
+    let squareSize = (engine.classicData ? classicChunkSize : rs2ChunkSize);
+    let chunkpadding = Math.ceil(chunkfloorpadding / squareSize);
+    let grid = new TileGrid(engine, {
+        x: rect.x * squareSize - chunkfloorpadding,
+        z: rect.z * squareSize - chunkfloorpadding,
+        xsize: rect.xsize * squareSize + chunkfloorpadding * 2,
+        zsize: rect.zsize * squareSize + chunkfloorpadding * 2
+    }, opts?.mask);
+    let chunks: ChunkData[] = [];
+    for (let z = -chunkpadding; z < rect.zsize + chunkpadding; z++) {
+        for (let x = -chunkpadding; x < rect.xsize + chunkpadding; x++) {
+            let chunk = await getMapsquareData(engine, rect.x + x, rect.z + z);
+            if (!chunk) {
+                continue;
+            }
+            grid.addMapsquare(chunk.tiles, chunk.nxttiles, chunk.tilerect, chunk.levelcount, !!opts?.collision);
+
+            //only add the actual ones we need to the queue
+            if (chunk.mapsquarex < rect.x || chunk.mapsquarex >= rect.x + rect.xsize) { continue; }
+            if (chunk.mapsquarez < rect.z || chunk.mapsquarez >= rect.z + rect.zsize) { continue; }
+            chunks.push(chunk);
+        }
+    }
+    if (engine.classicData) {
+        classicModifyTileGrid(grid);
+    }
+    grid.blendUnderlays();
+    for (let chunk of chunks) {
+        chunk.locs = await mapsquareObjects(engine, grid, chunk.rawlocs, chunk.tilerect.x, chunk.tilerect.z, !!opts?.collision);
+    }
+
+    return {grid, chunks};
+}
 
 function collisionOverLay(grid: TileGrid, floor: number): Jimp {
     let image = new Jimp(64, 64)
@@ -130,32 +169,6 @@ export function canMove(data: TileGrid, pos: MapCoordinate, d: direction): boole
     return true
 }
 
-export async function simpleParseMapsquare(engine: EngineCache, rect: MapRect, opts?: ParsemapOpts): Promise<TileGrid> {
-    let chunkfloorpadding = (opts?.padfloor ? 20 : 0)//TODO same as max(blending kernel,max loc size), put this in a const somewhere
-    let squareSize        = (engine.classicData ? classicChunkSize : rs2ChunkSize)
-    let chunkpadding      = Math.ceil(chunkfloorpadding / squareSize)
-    let grid              = new TileGrid(engine, {
-        x: rect.x * squareSize - chunkfloorpadding,
-        z: rect.z * squareSize - chunkfloorpadding,
-        xsize: rect.xsize * squareSize + chunkfloorpadding * 2,
-        zsize: rect.zsize * squareSize + chunkfloorpadding * 2,
-    }, opts?.mask)
-
-    for (let z = -chunkpadding; z < rect.zsize + chunkpadding; z++) {
-        for (let x = -chunkpadding; x < rect.xsize + chunkpadding; x++) {
-            let chunk = await getMapsquareData(engine, rect.x + x, rect.z + z)
-            if (!chunk) {
-                continue
-            }
-            grid.addMapsquare(chunk.tiles, chunk.nxttiles, chunk.tilerect, chunk.levelcount, !!opts?.collision)
-        }
-    }
-
-    grid.blendUnderlaysCollisionOnly()
-
-    return grid
-}
-
 function optimizedCollisionFile(grid: TileGrid, floor: number, start_x: number, start_y: number, square_size: number): Uint8Array {
     let file = new Uint8Array(square_size * square_size)
 
@@ -254,7 +267,7 @@ function optimizedCollisionFile2(grid: TileGrid, floor: number, start_x: number,
                 if (blocked(tile, entry.blocked_direction)) {
                     entry.blocks.forEach(({from, to}) => {
                         const from_off = direction.toVector(from)
-                        const from_i   = safe_flat(tile_x + from_off.x, tile_y + from_off.y)
+                        const from_i = safe_flat(tile_x + from_off.x, tile_y + from_off.y)
 
                         to.forEach(to => {
                             const to_off = direction.toVector(to)
@@ -296,20 +309,21 @@ export function collision_file_index_full(directory: string): FileIndex[] {
     for (let file_z = 0; file_z < chunk_meta.chunks_z / chunk_meta.chunks_per_file; file_z++) {
         for (let file_x = 0; file_x < chunk_meta.chunks_x / chunk_meta.chunks_per_file; file_x++) {
             file_index.push({
-                                file_x: file_x,
-                                file_z: file_z,
-                                floors: [0, 1, 2, 3].map((floor) => {
-                                    return {
-                                        floor: floor,
-                                        file_name: `${directory}/collision-${file_x}-${file_z}-${floor}.bin`,
-                                    }
-                                }),
-                            })
+                file_x: file_x,
+                file_z: file_z,
+                floors: [0, 1, 2, 3].map((floor) => {
+                    return {
+                        floor: floor,
+                        file_name: `${directory}/collision-${file_x}-${file_z}-${floor}.bin`,
+                    }
+                }),
+            })
         }
     }
 
     return file_index
 }
+
 
 export async function create_collision_files(output: ScriptOutput, cache: EngineCache, file_index: FileIndex[]) {
     for (let {file_x, file_z, floors} of file_index) {
@@ -318,18 +332,28 @@ export async function create_collision_files(output: ScriptOutput, cache: Engine
             continue
         }
 
-        let {grid} = await time(`parse-${file_x}-${file_z}`, async () => await parseMapsquare(cache, {
-                                                                                                  x: Math.max(0, file_x * chunk_meta.chunks_per_file - 1),
-                                                                                                  z: Math.max(0, file_z * chunk_meta.chunks_per_file - 1),
-                                                                                                  xsize: (chunk_meta.chunks_per_file + 1) + (file_x * chunk_meta.chunks_per_file < chunk_meta.chunks_x ? 1 : 0),
-                                                                                                  zsize: (chunk_meta.chunks_per_file + 1) + (file_z * chunk_meta.chunks_per_file < chunk_meta.chunks_z ? 1 : 0),
-                                                                                              }, {
-                                                                                                  padfloor: false,
-                                                                                                  invisibleLayers: true,
-                                                                                                  collision: true,
-                                                                                                  map2d: false,
-                                                                                                  skybox: false,
-                                                                                              },
+
+        // TODO: This breaks after the rebase! Parse multiple chunks.
+        /*
+            xsize: (chunk_meta.chunks_per_file + 1) + (file_x * chunk_meta.chunks_per_file < chunk_meta.chunks_x ? 1 : 0),
+            zsize: (chunk_meta.chunks_per_file + 1) + (file_z * chunk_meta.chunks_per_file < chunk_meta.chunks_z ? 1 : 0),
+
+
+         */
+
+        let {grid} = await time(`parse-${file_x}-${file_z}`, async () => await parseMapsquares(cache,
+            {
+                x: Math.max(0, file_x * chunk_meta.chunks_per_file - 1),
+                z: Math.max(0, file_z * chunk_meta.chunks_per_file - 1),
+                xsize: (chunk_meta.chunks_per_file + 1) + (file_x * chunk_meta.chunks_per_file < chunk_meta.chunks_x ? 1 : 0),
+                zsize: (chunk_meta.chunks_per_file + 1) + (file_z * chunk_meta.chunks_per_file < chunk_meta.chunks_z ? 1 : 0)
+            }, {
+                padfloor: true,
+                invisibleLayers: true,
+                collision: true,
+                map2d: false,
+                skybox: false,
+            },
         ))
 
         if (!grid) {
@@ -345,9 +369,9 @@ export async function create_collision_files(output: ScriptOutput, cache: Engine
 
             await time(`convert-${file_x}-${file_z}-${floor}`, () => {
                 let file = optimizedCollisionFile2(grid, floor,
-                                                   file_x * chunk_meta.chunks_per_file * 64,
-                                                   file_z * chunk_meta.chunks_per_file * 64,
-                                                   chunk_meta.chunks_per_file * 64,
+                    file_x * chunk_meta.chunks_per_file * 64,
+                    file_z * chunk_meta.chunks_per_file * 64,
+                    chunk_meta.chunks_per_file * 64,
                 )
 
                 file = pako.deflate(file)

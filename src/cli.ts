@@ -2,6 +2,7 @@ import * as cmdts from "cmd-ts";
 import { CliApiContext, cliApi } from "./clicommands";
 import { cliArguments } from "./cliparser";
 import { CLIScriptFS, CLIScriptOutput } from "./scriptrunner";
+import {exit} from "process";
 
 let ctx: CliApiContext = {
     getFs(fsname: string) { return new CLIScriptFS(fsname); },
@@ -10,4 +11,4 @@ let ctx: CliApiContext = {
 
 let api = cliApi(ctx);
 
-cmdts.run(api.subcommands, cliArguments());
+cmdts.run(api.subcommands, cliArguments()).then(() => exit())
