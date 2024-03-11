@@ -1,9 +1,8 @@
-
-import { ThreeJsRenderer } from "./threejsrender";
+import {ThreeJsRenderer} from "./threejsrender";
 import * as React from "react";
-import { boundMethod } from "autobind-decorator";
-import { WasmGameCacheLoader } from "../cache/sqlitewasm";
-import { CacheFileSource, CallbackCacheLoader } from "../cache";
+import {boundMethod} from "autobind-decorator";
+import {WasmGameCacheLoader} from "../cache/sqlitewasm";
+import {CacheFileSource, CallbackCacheLoader} from "../cache";
 import * as datastore from "idb-keyval";
 import { EngineCache, ThreejsSceneCache } from "../3d/modeltothree";
 import { InputCommitted, StringInput, JsonDisplay, IdInput, LabeledInput, TabStrip, CanvasView, BlobImage, BlobAudio, CopyButton } from "./commoncontrols";
@@ -36,31 +35,31 @@ let electron: typeof import("electron/renderer") | null = (() => {
 })();
 
 export type SavedCacheSource = {
-	type: string
+    type: string
 } & ({
-	type: "autohandle",
-	handle: FileSystemDirectoryHandle
+    type: "autohandle",
+    handle: FileSystemDirectoryHandle
 } | {
-	type: "sqliteblobs",
-	blobs: Record<string, Blob>
+    type: "sqliteblobs",
+    blobs: Record<string, Blob>
 } | {
-	type: "openrs2",
-	cachename: string
+    type: "openrs2",
+    cachename: string
 } | {
-	type: "autofs",
-	location: string,
-	writable?: boolean
+    type: "autofs",
+    location: string,
+    writable?: boolean
 } | {
-	type: "live"
+    type: "live"
 });
 
 export async function downloadBlob(name: string, blob: Blob) {
-	let a = document.createElement("a");
-	let url = URL.createObjectURL(blob);
-	a.download = name;
-	a.href = url;
-	a.click();
-	setTimeout(() => URL.revokeObjectURL(url), 1);
+    let a = document.createElement("a");
+    let url = URL.createObjectURL(blob);
+    a.download = name;
+    a.href = url;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1);
 }
 
 /**@deprecated requires a service worker and is pretty sketchy, also no actual streaming output file sources atm */
@@ -82,137 +81,137 @@ export async function downloadStream(name: string, stream: ReadableStream) {
 }
 
 function OpenRs2IdSelector(p: { initialid: number, onSelect: (id: number) => void }) {
-	let [relevantcaches, setrelevantcaches] = React.useState<Openrs2CacheMeta[] | null>(null);
-	let [loading, setLoading] = React.useState(false);
-	let [relevantonly, setrelevantonly] = React.useState(true);
-	let [gameFilter, setGameFilter] = React.useState("runescape");
-	let [yearFilter, setYearfilter] = React.useState("");
-	let [langFilter, setLangfilter] = React.useState("en");
+    let [relevantcaches, setrelevantcaches] = React.useState<Openrs2CacheMeta[] | null>(null);
+    let [loading, setLoading] = React.useState(false);
+    let [relevantonly, setrelevantonly] = React.useState(true);
+    let [gameFilter, setGameFilter] = React.useState("runescape");
+    let [yearFilter, setYearfilter] = React.useState("");
+    let [langFilter, setLangfilter] = React.useState("en");
 
-	let openselector = React.useCallback(async () => {
-		setLoading(true);
-		setrelevantcaches(await validOpenrs2Caches());
-	}, []);
+    let openselector = React.useCallback(async () => {
+        setLoading(true);
+        setrelevantcaches(await validOpenrs2Caches());
+    }, []);
 
-	let games: string[] = [];
-	let years: string[] = [];
-	let langs: string[] = [];
-	for (let cache of relevantcaches ?? []) {
-		if (cache.timestamp) {
-			let year = "" + new Date(cache.timestamp ?? 0).getUTCFullYear();
-			if (years.indexOf(year) == -1) { years.push(year); }
-		}
-		if (games.indexOf(cache.game) == -1) { games.push(cache.game); }
-		if (langs.indexOf(cache.language) == -1) { langs.push(cache.language); }
-	}
+    let games: string[] = [];
+    let years: string[] = [];
+    let langs: string[] = [];
+    for (let cache of relevantcaches ?? []) {
+        if (cache.timestamp) {
+            let year = "" + new Date(cache.timestamp ?? 0).getUTCFullYear();
+            if (years.indexOf(year) == -1) { years.push(year); }
+        }
+        if (games.indexOf(cache.game) == -1) { games.push(cache.game); }
+        if (langs.indexOf(cache.language) == -1) { langs.push(cache.language); }
+    }
 
-	years.sort((a, b) => (+b) - (+a));
+    years.sort((a, b) => (+b) - (+a));
 
-	let showncaches = (relevantcaches ?? []).filter(cache => {
-		if (gameFilter && cache.game != gameFilter) { return false; }
-		if (langFilter && cache.language != langFilter) { return false; }
-		if (yearFilter && new Date(cache.timestamp ?? 0).getUTCFullYear() != +yearFilter) { return false; }
-		return true;
-	});
-	showncaches.sort((a, b) => +new Date(b.timestamp ?? 0) - +new Date(a.timestamp ?? 0));
+    let showncaches = (relevantcaches ?? []).filter(cache => {
+        if (gameFilter && cache.game != gameFilter) { return false; }
+        if (langFilter && cache.language != langFilter) { return false; }
+        if (yearFilter && new Date(cache.timestamp ?? 0).getUTCFullYear() != +yearFilter) { return false; }
+        return true;
+    });
+    showncaches.sort((a, b) => +new Date(b.timestamp ?? 0) - +new Date(a.timestamp ?? 0));
 
-	let enterCacheId = async (idstring: string) => {
-		let id = +idstring;
-		if (id > 0) {
-			p.onSelect(id);
-		} else {
-			let relevantcaches = await validOpenrs2Caches();
-			p.onSelect(relevantcaches[-id].id);
-		}
-	}
+    let enterCacheId = async (idstring: string) => {
+        let id = +idstring;
+        if (id > 0) {
+            p.onSelect(id);
+        } else {
+            let relevantcaches = await validOpenrs2Caches();
+            p.onSelect(relevantcaches[-id].id);
+        }
+    }
 
-	return (
-		<React.Fragment>
-			<StringInput initialid={p.initialid + ""} onChange={enterCacheId} />
-			{!loading && !relevantcaches && <input type="button" className="sub-btn" onClick={openselector} value="More options..." />}
-			{relevantcaches && (
-				<React.Fragment>
-					<div style={{ overflowY: "auto" }}>
-						<table>
-							<thead>
-								<tr>
-									<td></td>
-									{/* <td>
+    return (
+        <React.Fragment>
+            <StringInput initialid={p.initialid + ""} onChange={enterCacheId}/>
+            {!loading && !relevantcaches && <input type="button" className="sub-btn" onClick={openselector} value="More options..."/>}
+            {relevantcaches && (
+                <React.Fragment>
+                    <div style={{overflowY: "auto"}}>
+                        <table>
+                            <thead>
+                            <tr>
+                                <td></td>
+                                {/* <td>
 										<select value={gameFilter} onChange={e => setGameFilter(e.currentTarget.value)}>
 											<option value="">Game</option>
 											{games.map(game => <option key={game} value={game}>{game}</option>)}
 										</select>
 									</td> */}
-									{/* <td>
+                                {/* <td>
 										<select value={langFilter} onChange={e => setLangfilter(e.currentTarget.value)}>
 											<option value="">--</option>
 											{langs.map(lang => <option key={lang} value={lang}>{lang}</option>)}
 										</select>
 									</td> */}
-									<td>
-										<select value={yearFilter} onChange={e => setYearfilter(e.currentTarget.value)}>
-											<option value="">Date</option>
-											{years.map(year => <option key={year} value={year}>{year}</option>)}
-										</select>
-									</td>
-									<td>
-										Build
-									</td>
-								</tr>
-							</thead>
-							<tbody>
-								{showncaches.map(cache => (
-									<tr key={cache.language + cache.id}>
-										<td><input type="button" value={cache.id} className="sub-btn" onClick={p.onSelect.bind(null, cache.id)} /></td>
-										{/* <td>{cache.game}</td> */}
-										{/* <td>{cache.language}</td> */}
-										<td>{cache.timestamp ? new Date(cache.timestamp).toDateString() : ""}</td>
-										<td>{cache.builds.map(q => q.major + (q.minor ? "." + q.minor : "")).join(",")}</td>
-									</tr>
-								))}
-							</tbody>
-						</table>
-					</div>
-				</React.Fragment>
-			)}
-		</React.Fragment>
-	)
+                                <td>
+                                    <select value={yearFilter} onChange={e => setYearfilter(e.currentTarget.value)}>
+                                        <option value="">Date</option>
+                                        {years.map(year => <option key={year} value={year}>{year}</option>)}
+                                    </select>
+                                </td>
+                                <td>
+                                    Build
+                                </td>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {showncaches.map(cache => (
+                                <tr key={cache.language + cache.id}>
+                                    <td><input type="button" value={cache.id} className="sub-btn" onClick={p.onSelect.bind(null, cache.id)}/></td>
+                                    {/* <td>{cache.game}</td> */}
+                                    {/* <td>{cache.language}</td> */}
+                                    <td>{cache.timestamp ? new Date(cache.timestamp).toDateString() : ""}</td>
+                                    <td>{cache.builds.map(q => q.major + (q.minor ? "." + q.minor : "")).join(",")}</td>
+                                </tr>
+                            ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </React.Fragment>
+            )}
+        </React.Fragment>
+    )
 }
 
-export class CacheSelector extends React.Component<{ onOpen: (c: SavedCacheSource) => void, noReopen?: boolean }, { lastFolderOpen: FileSystemDirectoryHandle | null }>{
-	constructor(p) {
-		super(p);
-		this.state = {
-			lastFolderOpen: null
-		};
+export class CacheSelector extends React.Component<{ onOpen: (c: SavedCacheSource) => void, noReopen?: boolean }, { lastFolderOpen: FileSystemDirectoryHandle | null }> {
+    constructor(p) {
+        super(p);
+        this.state = {
+            lastFolderOpen: null
+        };
 
-		if (!this.props.noReopen) {
-			datastore.get<FileSystemDirectoryHandle>("lastfolderopen").then(f => {
-				if (f) { this.setState({ lastFolderOpen: f }); }
-			});
-		}
-	}
+        if (!this.props.noReopen) {
+            datastore.get<FileSystemDirectoryHandle>("lastfolderopen").then(f => {
+                if (f) { this.setState({lastFolderOpen: f}); }
+            });
+        }
+    }
 
-	componentDidMount() {
-		document.body.addEventListener("dragover", this.onDragOver);
-		document.body.addEventListener("drop", this.onFileDrop);
-	}
+    componentDidMount() {
+        document.body.addEventListener("dragover", this.onDragOver);
+        document.body.addEventListener("drop", this.onFileDrop);
+    }
 
-	componentWillUnmount() {
-		document.body.removeEventListener("dragover", this.onDragOver);
-		document.body.removeEventListener("drop", this.onFileDrop)
-	}
+    componentWillUnmount() {
+        document.body.removeEventListener("dragover", this.onDragOver);
+        document.body.removeEventListener("drop", this.onFileDrop)
+    }
 
-	@boundMethod
-	onDragOver(e: DragEvent) {
-		e.preventDefault();
-	}
+    @boundMethod
+    onDragOver(e: DragEvent) {
+        e.preventDefault();
+    }
 
-	@boundMethod
-	async clickOpen() {
-		let dir = await showDirectoryPicker();
-		this.props.onOpen({ type: "autohandle", handle: dir });
-	}
+    @boundMethod
+    async clickOpen() {
+        let dir = await showDirectoryPicker();
+        this.props.onOpen({type: "autohandle", handle: dir});
+    }
 
 	@boundMethod
 	async clickOpenNative() {
@@ -223,65 +222,65 @@ export class CacheSelector extends React.Component<{ onOpen: (c: SavedCacheSourc
 		}
 	}
 
-	@boundMethod
-	async clickOpenLive() {
-		this.props.onOpen({ type: "live" });
-	}
+    @boundMethod
+    async clickOpenLive() {
+        this.props.onOpen({type: "live"});
+    }
 
-	@boundMethod
-	async clickReopen() {
-		if (!this.state.lastFolderOpen) { return; }
-		if (await this.state.lastFolderOpen.requestPermission() == "granted") {
-			this.props.onOpen({ type: "autohandle", handle: this.state.lastFolderOpen });
-		}
-	}
+    @boundMethod
+    async clickReopen() {
+        if (!this.state.lastFolderOpen) { return; }
+        if (await this.state.lastFolderOpen.requestPermission() == "granted") {
+            this.props.onOpen({type: "autohandle", handle: this.state.lastFolderOpen});
+        }
+    }
 
-	@boundMethod
-	async onFileDrop(e: DragEvent) {
-		e.preventDefault();
-		if (e.dataTransfer) {
-			let files: Record<string, Blob> = {};
-			let items: DataTransferItem[] = [];
-			let folderhandles: FileSystemDirectoryHandle[] = [];
-			let filehandles: FileSystemFileHandle[] = [];
-			for (let i = 0; i < e.dataTransfer.items.length; i++) { items.push(e.dataTransfer.items[i]); }
-			//needs to start synchronously as the list is cleared after the event stack
-			await Promise.all(items.map(async item => {
-				if (item.getAsFileSystemHandle) {
-					let filehandle = (await item.getAsFileSystemHandle())!;
-					if (filehandle.kind == "file") {
-						let file = filehandle as FileSystemFileHandle;
-						filehandles.push(file);
-						files[filehandle.name] = await file.getFile();
-					} else {
-						let dir = filehandle as FileSystemDirectoryHandle;
-						folderhandles.push(dir);
-						for await (let handle of dir.values()) {
-							if (handle.kind == "file") {
-								files[handle.name] = await handle.getFile();
-							}
-						}
-					}
-				} else if (item.kind == "file") {
-					let file = item.getAsFile()!;
-					files[file.name] = file;
-				}
-			}));
-			if (folderhandles.length == 1 && filehandles.length == 0) {
-				console.log("stored folder " + folderhandles[0].name);
-				datastore.set("lastfolderopen", folderhandles[0]);
-				this.props.onOpen({ type: "autohandle", handle: folderhandles[0] });
-			} else {
-				console.log(`added ${Object.keys(files).length} files`);
-				this.props.onOpen({ type: "sqliteblobs", blobs: files });
-			}
-		}
-	}
+    @boundMethod
+    async onFileDrop(e: DragEvent) {
+        e.preventDefault();
+        if (e.dataTransfer) {
+            let files: Record<string, Blob> = {};
+            let items: DataTransferItem[] = [];
+            let folderhandles: FileSystemDirectoryHandle[] = [];
+            let filehandles: FileSystemFileHandle[] = [];
+            for (let i = 0; i < e.dataTransfer.items.length; i++) { items.push(e.dataTransfer.items[i]); }
+            //needs to start synchronously as the list is cleared after the event stack
+            await Promise.all(items.map(async item => {
+                if (item.getAsFileSystemHandle) {
+                    let filehandle = (await item.getAsFileSystemHandle())!;
+                    if (filehandle.kind == "file") {
+                        let file = filehandle as FileSystemFileHandle;
+                        filehandles.push(file);
+                        files[filehandle.name] = await file.getFile();
+                    } else {
+                        let dir = filehandle as FileSystemDirectoryHandle;
+                        folderhandles.push(dir);
+                        for await (let handle of dir.values()) {
+                            if (handle.kind == "file") {
+                                files[handle.name] = await handle.getFile();
+                            }
+                        }
+                    }
+                } else if (item.kind == "file") {
+                    let file = item.getAsFile()!;
+                    files[file.name] = file;
+                }
+            }));
+            if (folderhandles.length == 1 && filehandles.length == 0) {
+                console.log("stored folder " + folderhandles[0].name);
+                datastore.set("lastfolderopen", folderhandles[0]);
+                this.props.onOpen({type: "autohandle", handle: folderhandles[0]});
+            } else {
+                console.log(`added ${Object.keys(files).length} files`);
+                this.props.onOpen({type: "sqliteblobs", blobs: files});
+            }
+        }
+    }
 
-	@boundMethod
-	openOpenrs2Cache(cachename: number) {
-		this.props.onOpen({ type: "openrs2", cachename: cachename + "" });
-	}
+    @boundMethod
+    openOpenrs2Cache(cachename: number) {
+        this.props.onOpen({type: "openrs2", cachename: cachename + ""});
+    }
 
 	render() {
 		return (
@@ -312,39 +311,39 @@ export class CacheSelector extends React.Component<{ onOpen: (c: SavedCacheSourc
 }
 
 function CacheDragNDropHelp() {
-	const canfsapi = typeof FileSystemHandle != "undefined"
-	let [open, setOpen] = React.useState(false);
-	let [mode, setmode] = React.useState<"fsapi" | "blob">(canfsapi ? "fsapi" : "blob");
+    const canfsapi = typeof FileSystemHandle != "undefined"
+    let [open, setOpen] = React.useState(false);
+    let [mode, setmode] = React.useState<"fsapi" | "blob">(canfsapi ? "fsapi" : "blob");
 
-	return (
-		<React.Fragment>
-			<p>
-				{canfsapi && "Drag a folder containing the RS3 cache files here in order to view it."}
-				{!canfsapi && "Drag the RS3 cache files you wish to view"}
-				<a style={{ float: "right" }} onClick={e => setOpen(!open)}>{!open ? "More info" : "Close"}</a>
-			</p>
-			{open && (
-				<div style={{ display: "flex", flexDirection: "column" }}>
-					<TabStrip value={mode} tabs={{ fsapi: "Full folder", blob: "Files" }} onChange={setmode as any} />
-					{mode == "fsapi" && (
-						<React.Fragment>
-							{!canfsapi && <p className="mv-errortext">You browser does not support full folder loading!</p>}
-							<p>Drop the RuneScape folder into this window.</p>
-							<input type="text" onFocus={e => e.target.select()} readOnly value={"C:\\ProgramData\\Jagex"} />
-							<video src={new URL("../assets/dragndrop.mp4", import.meta.url).href} autoPlay loop style={{ aspectRatio: "352/292" }} />
-						</React.Fragment>
-					)}
-					{mode == "blob" && (
-						<React.Fragment>
-							<p>Drop and drop the cache files into this window.</p>
-							<input type="text" onFocus={e => e.target.select()} readOnly value={"C:\\ProgramData\\Jagex"} />
-							<video src={new URL("../assets/dragndropblob.mp4", import.meta.url).href} autoPlay loop style={{ aspectRatio: "458/380" }} />
-						</React.Fragment>
-					)}
-				</div>
-			)}
-		</React.Fragment>
-	);
+    return (
+        <React.Fragment>
+            <p>
+                {canfsapi && "Drag a folder containing the RS3 cache files here in order to view it."}
+                {!canfsapi && "Drag the RS3 cache files you wish to view"}
+                <a style={{float: "right"}} onClick={e => setOpen(!open)}>{!open ? "More info" : "Close"}</a>
+            </p>
+            {open && (
+                <div style={{display: "flex", flexDirection: "column"}}>
+                    <TabStrip value={mode} tabs={{fsapi: "Full folder", blob: "Files"}} onChange={setmode as any}/>
+                    {mode == "fsapi" && (
+                        <React.Fragment>
+                            {!canfsapi && <p className="mv-errortext">You browser does not support full folder loading!</p>}
+                            <p>Drop the RuneScape folder into this window.</p>
+                            <input type="text" onFocus={e => e.target.select()} readOnly value={"C:\\ProgramData\\Jagex"}/>
+                            <video src={new URL("../assets/dragndrop.mp4", import.meta.url).href} autoPlay loop style={{aspectRatio: "352/292"}}/>
+                        </React.Fragment>
+                    )}
+                    {mode == "blob" && (
+                        <React.Fragment>
+                            <p>Drop and drop the cache files into this window.</p>
+                            <input type="text" onFocus={e => e.target.select()} readOnly value={"C:\\ProgramData\\Jagex"}/>
+                            <video src={new URL("../assets/dragndropblob.mp4", import.meta.url).href} autoPlay loop style={{aspectRatio: "458/380"}}/>
+                        </React.Fragment>
+                    )}
+                </div>
+            )}
+        </React.Fragment>
+    );
 }
 
 export type UIContextReady = UIContext & { source: CacheFileSource, sceneCache: ThreejsSceneCache, renderer: ThreeJsRenderer };
@@ -359,36 +358,36 @@ export class UIContext extends TypedEmitter<{ openfile: UIOpenedFile | null, sta
 	rootElement: HTMLElement;
 	useServiceWorker: boolean;
 
-	constructor(rootelement: HTMLElement, useServiceWorker: boolean) {
-		super();
-		this.rootElement = rootelement;
-		this.useServiceWorker = useServiceWorker;
+    constructor(rootelement: HTMLElement, useServiceWorker: boolean) {
+        super();
+        this.rootElement = rootelement;
+        this.useServiceWorker = useServiceWorker;
 
-		if (useServiceWorker) {
-			//this service worker holds a reference to the cache fs handle which will keep the handles valid 
-			//across tab reloads
-			navigator.serviceWorker.register(new URL('../assets/contextholder.js', import.meta.url).href, { scope: './', });
-		}
-	}
+        if (useServiceWorker) {
+            //this service worker holds a reference to the cache fs handle which will keep the handles valid
+            //across tab reloads
+            navigator.serviceWorker.register(new URL('../assets/contextholder.js', import.meta.url).href, {scope: './',});
+        }
+    }
 
-	setCacheSource(source: CacheFileSource | null) {
-		this.source = source;
-		this.emit("statechange", undefined)
-	}
+    setCacheSource(source: CacheFileSource | null) {
+        this.source = source;
+        this.emit("statechange", undefined)
+    }
 
-	setSceneCache(sceneCache: ThreejsSceneCache | null) {
-		this.sceneCache = sceneCache;
-		this.emit("statechange", undefined)
-	}
+    setSceneCache(sceneCache: ThreejsSceneCache | null) {
+        this.sceneCache = sceneCache;
+        this.emit("statechange", undefined)
+    }
 
-	setRenderer(renderer: ThreeJsRenderer | null) {
-		this.renderer = renderer;
-		this.emit("statechange", undefined);
-	}
+    setRenderer(renderer: ThreeJsRenderer | null) {
+        this.renderer = renderer;
+        this.emit("statechange", undefined);
+    }
 
-	canRender(): this is UIContextReady {
-		return !!this.source && !!this.sceneCache && !!this.renderer;
-	}
+    canRender(): this is UIContextReady {
+        return !!this.source && !!this.sceneCache && !!this.renderer;
+    }
 
 	@boundMethod
 	openFile(file: UIOpenedFile | null) {
@@ -437,117 +436,117 @@ export async function openSavedCache(source: SavedCacheSource, remember: boolean
 
 
 function bufToHexView(buf: Buffer) {
-	let resulthex = "";
-	let resultchrs = "";
+    let resulthex = "";
+    let resultchrs = "";
 
-	let linesize = 16;
-	let groupsize = 8;
+    let linesize = 16;
+    let groupsize = 8;
 
-	outer: for (let lineindex = 0; ; lineindex += linesize) {
-		if (lineindex != 0) {
-			resulthex += "\n";
-			resultchrs += "\n";
-		}
-		for (let groupindex = 0; groupindex < linesize; groupindex += groupsize) {
-			if (groupindex != 0) {
-				resulthex += "  ";
-				resultchrs += " ";
-			}
-			for (let chrindex = 0; chrindex < groupsize; chrindex++) {
-				let i = lineindex + groupindex + chrindex;
-				if (i >= buf.length) { break outer; }
-				let byte = buf[i];
+    outer: for (let lineindex = 0; ; lineindex += linesize) {
+        if (lineindex != 0) {
+            resulthex += "\n";
+            resultchrs += "\n";
+        }
+        for (let groupindex = 0; groupindex < linesize; groupindex += groupsize) {
+            if (groupindex != 0) {
+                resulthex += "  ";
+                resultchrs += " ";
+            }
+            for (let chrindex = 0; chrindex < groupsize; chrindex++) {
+                let i = lineindex + groupindex + chrindex;
+                if (i >= buf.length) { break outer; }
+                let byte = buf[i];
 
-				if (chrindex != 0) { resulthex += " "; }
-				resulthex += byte.toString(16).padStart(2, "0");
-				resultchrs += (byte < 0x20 ? "." : String.fromCharCode(byte));
-			}
-		}
-	}
-	return { resulthex, resultchrs };
+                if (chrindex != 0) { resulthex += " "; }
+                resulthex += byte.toString(16).padStart(2, "0");
+                resultchrs += (byte < 0x20 ? "." : String.fromCharCode(byte));
+            }
+        }
+    }
+    return {resulthex, resultchrs};
 }
 
 function annotatedHexDom(data: Buffer, chunks: DecodeErrorJson["chunks"]) {
-	let resulthex = "";
-	let resultchrs = "";
+    let resulthex = "";
+    let resultchrs = "";
 
-	let linesize = 16;
-	let groupsize = 8;
+    let linesize = 16;
+    let groupsize = 8;
 
-	let hexels = document.createDocumentFragment();
-	let textels = document.createDocumentFragment();
-	let labelel = document.createElement("span");
-	let currentchunk: DecodeErrorJson["chunks"][number] | undefined = { offset: 0, len: 0, label: "start" };
+    let hexels = document.createDocumentFragment();
+    let textels = document.createDocumentFragment();
+    let labelel = document.createElement("span");
+    let currentchunk: DecodeErrorJson["chunks"][number] | undefined = {offset: 0, len: 0, label: "start"};
 
-	let mappedchunks: { chunk: DecodeErrorJson["chunks"][number], hexel: HTMLElement, textel: HTMLElement }[] = [];
+    let mappedchunks: { chunk: DecodeErrorJson["chunks"][number], hexel: HTMLElement, textel: HTMLElement }[] = [];
 
-	let hoverenter = (e: MouseEvent) => {
-		let index = +(e.currentTarget as HTMLElement).dataset.index!;
-		if (isNaN(index)) { return; }
-		let chunk = mappedchunks[index];
-		chunk.hexel.classList.add("mv-hex--select");
-		chunk.textel.classList.add("mv-hex--select");
-		labelel.innerText = `0x${chunk.chunk.offset.toString(16)} - ${chunk.chunk.len} ${index}\n${chunk.chunk.label}`;
-	}
-	let hoverleave = (e: MouseEvent) => {
-		let index = +(e.currentTarget as HTMLElement).dataset.index!;
-		if (isNaN(index)) { return; }
-		let chunk = mappedchunks[index];
-		chunk.hexel.classList.remove("mv-hex--select");
-		chunk.textel.classList.remove("mv-hex--select");
-		labelel.innerText = "";
-	}
+    let hoverenter = (e: MouseEvent) => {
+        let index = +(e.currentTarget as HTMLElement).dataset.index!;
+        if (isNaN(index)) { return; }
+        let chunk = mappedchunks[index];
+        chunk.hexel.classList.add("mv-hex--select");
+        chunk.textel.classList.add("mv-hex--select");
+        labelel.innerText = `0x${chunk.chunk.offset.toString(16)} - ${chunk.chunk.len} ${index}\n${chunk.chunk.label}`;
+    }
+    let hoverleave = (e: MouseEvent) => {
+        let index = +(e.currentTarget as HTMLElement).dataset.index!;
+        if (isNaN(index)) { return; }
+        let chunk = mappedchunks[index];
+        chunk.hexel.classList.remove("mv-hex--select");
+        chunk.textel.classList.remove("mv-hex--select");
+        labelel.innerText = "";
+    }
 
-	let endchunk = () => {
-		if (resulthex != "" && resultchrs != "") {
-			let hexnode = document.createTextNode(resulthex);
-			let textnode = document.createTextNode(resultchrs);
-			if (currentchunk) {
-				let index = mappedchunks.length;
-				let hexspan = document.createElement("span");
-				let textspan = document.createElement("span");
-				hexspan.dataset.index = "" + index;
-				textspan.dataset.index = "" + index;
-				hexspan.onmouseenter = hoverenter;
-				hexspan.onmouseleave = hoverleave;
-				textspan.onmouseenter = hoverenter;
-				textspan.onmouseleave = hoverleave;
-				hexspan.appendChild(hexnode);
-				textspan.appendChild(textnode);
-				hexels.appendChild(hexspan);
-				textels.appendChild(textspan);
-				mappedchunks.push({ chunk: currentchunk, hexel: hexspan, textel: textspan });
-			} else {
-				hexels.appendChild(hexnode);
-				textels.appendChild(textnode);
-			}
-		}
-		currentchunk = undefined;
-		resulthex = "";
-		resultchrs = "";
-	}
+    let endchunk = () => {
+        if (resulthex != "" && resultchrs != "") {
+            let hexnode = document.createTextNode(resulthex);
+            let textnode = document.createTextNode(resultchrs);
+            if (currentchunk) {
+                let index = mappedchunks.length;
+                let hexspan = document.createElement("span");
+                let textspan = document.createElement("span");
+                hexspan.dataset.index = "" + index;
+                textspan.dataset.index = "" + index;
+                hexspan.onmouseenter = hoverenter;
+                hexspan.onmouseleave = hoverleave;
+                textspan.onmouseenter = hoverenter;
+                textspan.onmouseleave = hoverleave;
+                hexspan.appendChild(hexnode);
+                textspan.appendChild(textnode);
+                hexels.appendChild(hexspan);
+                textels.appendChild(textspan);
+                mappedchunks.push({chunk: currentchunk, hexel: hexspan, textel: textspan});
+            } else {
+                hexels.appendChild(hexnode);
+                textels.appendChild(textnode);
+            }
+        }
+        currentchunk = undefined;
+        resulthex = "";
+        resultchrs = "";
+    }
 
-	for (let i = 0; i < data.length; i++) {
-		let hexsep = (i == 0 ? "" : i % linesize == 0 ? "\n" : i % groupsize == 0 ? "  " : " ");
-		let textsep = (i == 0 ? "" : i % linesize == 0 ? "\n" : i % groupsize == 0 ? " " : "");
+    for (let i = 0; i < data.length; i++) {
+        let hexsep = (i == 0 ? "" : i % linesize == 0 ? "\n" : i % groupsize == 0 ? "  " : " ");
+        let textsep = (i == 0 ? "" : i % linesize == 0 ? "\n" : i % groupsize == 0 ? " " : "");
 
-		if (currentchunk && (i < currentchunk.offset || i >= currentchunk.offset + currentchunk.len)) {
-			endchunk();
-			//TODO yikes n^2, worst case currently is maptiles ~20k chunks
-			currentchunk = chunks.find(q => q.offset <= i && q.offset + q.len > i);
-		} else if (!currentchunk) {
-			let newchunk = chunks.find(q => q.offset <= i && q.offset + q.len > i);
-			if (newchunk) { endchunk() }
-			currentchunk = newchunk;
-		}
+        if (currentchunk && (i < currentchunk.offset || i >= currentchunk.offset + currentchunk.len)) {
+            endchunk();
+            //TODO yikes n^2, worst case currently is maptiles ~20k chunks
+            currentchunk = chunks.find(q => q.offset <= i && q.offset + q.len > i);
+        } else if (!currentchunk) {
+            let newchunk = chunks.find(q => q.offset <= i && q.offset + q.len > i);
+            if (newchunk) { endchunk() }
+            currentchunk = newchunk;
+        }
 
-		let byte = data[i];
-		resulthex += hexsep + byte.toString(16).padStart(2, "0");
-		resultchrs += textsep + (byte < 0x20 ? "." : String.fromCharCode(byte));
-	}
-	endchunk();
+        let byte = data[i];
+        resulthex += hexsep + byte.toString(16).padStart(2, "0");
+        resultchrs += textsep + (byte < 0x20 ? "." : String.fromCharCode(byte));
+    }
+    endchunk();
 
-	return { hexels, textels, labelel };
+    return {hexels, textels, labelel};
 }
 
 function UnknownFileViewer(p: { data: Buffer, ext: string }) {
@@ -572,36 +571,36 @@ function UnknownFileViewer(p: { data: Buffer, ext: string }) {
 
 
 function TrivialHexViewer(p: { data: Buffer }) {
-	let { resulthex, resultchrs } = bufToHexView(p.data);
+    let {resulthex, resultchrs} = bufToHexView(p.data);
 
-	return (
-		<table>
-			<tbody>
-				<tr>
-					<td className="mv-hexrow">{resulthex}</td>
-					<td className="mv-hexrow">{resultchrs}</td>
-				</tr>
-			</tbody>
-		</table>
-	)
+    return (
+        <table>
+            <tbody>
+            <tr>
+                <td className="mv-hexrow">{resulthex}</td>
+                <td className="mv-hexrow">{resultchrs}</td>
+            </tr>
+            </tbody>
+        </table>
+    )
 }
 
 function AnnotatedHexViewer(p: { data: Buffer, chunks: DecodeErrorJson["chunks"] }) {
-	let { hexels, textels, labelel } = React.useMemo(() => annotatedHexDom(p.data, p.chunks), [p.data, p.chunks]);
+    let {hexels, textels, labelel} = React.useMemo(() => annotatedHexDom(p.data, p.chunks), [p.data, p.chunks]);
 
-	return (
-		<table>
-			<tbody>
-				<tr>
-					<DomWrap tagName="td" el={hexels} className="mv-hexrow" />
-					<DomWrap tagName="td" el={textels} className="mv-hexrow" />
-					<td>
-						<DomWrap el={labelel} className="mv-hexlabel" />
-					</td>
-				</tr>
-			</tbody>
-		</table>
-	)
+    return (
+        <table>
+            <tbody>
+            <tr>
+                <DomWrap tagName="td" el={hexels} className="mv-hexrow"/>
+                <DomWrap tagName="td" el={textels} className="mv-hexrow"/>
+                <td>
+                    <DomWrap el={labelel} className="mv-hexlabel"/>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    )
 }
 
 function FileDecodeErrorViewer(p: { file: string }) {
@@ -661,11 +660,11 @@ function FileDecodeErrorViewer(p: { file: string }) {
 }
 
 function SimpleTextViewer(p: { file: string }) {
-	return (
-		<div className="mv-hexrow">
-			{p.file}
-		</div>
-	);
+    return (
+        <div className="mv-hexrow">
+            {p.file}
+        </div>
+    );
 }
 
 export function FileDisplay(p: { file: UIOpenedFile }) {

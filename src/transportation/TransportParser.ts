@@ -25,6 +25,7 @@ export abstract class TransportParser2<
     PerInstanceData
 > {
     public _name: string = "Unnamed"
+    private instance_data_required: boolean = false
 
     public locs: {
         for: number[],
@@ -39,6 +40,12 @@ export abstract class TransportParser2<
 
     }
 
+    requireInstanceData(): this {
+        this.instance_data_required = true
+
+        return this
+    }
+
     gather(loc: LocWithUsages): Transportation.Transportation[] {
         const loc_data = this.locs.find(l => l.for.includes(loc.id))
 
@@ -48,11 +55,15 @@ export abstract class TransportParser2<
             )
             .flatMap(use => {
                 try {
+                    const instance_data = loc_data?.instance_data.find(t => TileCoordinates.eq2(t.instance, use.origin))?.data
+
+                    if (this.instance_data_required && instance_data == null) return []
+
                     let result =
                         this.apply(loc.location,
                             use, {
                                 per_loc: loc_data?.data!!,
-                                per_instance: loc_data?.instance_data.find(t => TileCoordinates.eq2(t.instance, use.origin))?.data!!,
+                                per_instance: instance_data!!,
                             },
                         )
 
@@ -71,25 +82,39 @@ export abstract class TransportParser2<
         return results
     }
 
-    loc(data: PerLocData | undefined = undefined): (...loc: number[]) => this {
-        return (...loc: number[]) => {
+    loc(data: PerLocData | undefined = undefined): (...loc: number[]) => (...instance_data: [TileCoordinates, PerInstanceData | undefined][]) => this {
+        return (...loc: number[]) => (...instance_data: [TileCoordinates, PerInstanceData | undefined][]): this => {
             this.locs.push({
                 for: loc,
                 data: data,
-                instance_data: []
+                instance_data: instance_data.map(([instance, value]) => {
+                    return {
+                        instance: instance,
+                        data: value!!
+                    }
+                })
             })
 
             return this
         }
     }
 
-    specific(loc: number, origin: TileCoordinates, data: PerInstanceData): this {
-        this.locs.find(l => l.for.includes(loc))?.instance_data.push({
-            instance: origin,
-            data: data
-        })
+    perUse(loc: number, data: PerLocData | undefined = undefined): (...instance_data: [TileCoordinates, PerInstanceData][]) => this {
 
-        return this
+        return (...instance_data: [TileCoordinates, PerInstanceData][]): this => {
+            this.locs.push({
+                for: [loc],
+                data: data,
+                instance_data: instance_data.map(([instance, value]) => {
+                    return {
+                        instance: instance,
+                        data: value
+                    }
+                })
+            })
+
+            return this
+        }
     }
 
     name(name: string): this {
@@ -181,7 +206,7 @@ export namespace TransportParser {
                 return [];
             }
         })
-            .loc()(...locs)
+            .loc()(...locs)()
             .name(name)
     }
 }

@@ -7,6 +7,9 @@ import {direction} from "../zykloplib/runescape/movement";
 import {Vector2} from "../zykloplib/math";
 import ignore = TransportParser.ignore;
 import door = TransportParser.door;
+import {TileCoordinates} from "../zykloplib/runescape/coordinates";
+import {floor} from "three/examples/jsm/nodes/math/MathNode";
+import fixed = MovementBuilder.fixed;
 
 export const parsers2: TransportParser2<any, any>[] = [
     ignore("Not a transportation")
@@ -15,7 +18,7 @@ export const parsers2: TransportParser2<any, any>[] = [
             69144, 38760, 70060, 38783, 38785, 1282, 69139, 69142, 58140, 69141, 1276, 70063, 38787, 1278, 1286, 58108, 1289, 58121, 47596, 1291, 58135, 47594, 47598, 4818, 47600, 4820, 38782, 51843, 38786, 69554, 2289, 38788, 58141, 11866, 37477, 38784, 2889, 1283, 58109, 9366, 1383, 9387, 2890, 4060, 69556, 37478, 9355, 70068, 2410, 70071, 42893, 63176, 2887, 9354, 24168, 1284, 58142, 122440, 70066, 110930, 119459, 110926, 119457, 1365, 9388, 46277, 110932, 3300, 37482, 110927, 110928, 16604, 119460, 99822, 110931, 110933, 124998, 37481, 92440, 110929, 2409, 16265, 79813, 107507, 124996, 2411, 28951, 61191, 99823, 107506, 125510, 61192, 77095, 93384, 119458, 125502, 1384, 2023, 41713, 61190, 61193, 93385, 99825, 100637, 122439, 125504, 125506, 3293, 4135, 5904, 32294, 99824, 125514, 1292, 1330, 1331, 1332, 4674, 18137, 28952, 37483, 37654, 37821, 70001, 70002, 70003, 70005, 70099, 87512, 87514, 87516, 87518, 87520, 87522, 87524, 87526, 87528, 87530, 94314, 100261, 111254, 125508, 125512, 125516, 125533,
             // More Trees
             38731, 54787, 38732, 38616, 54778, 57964, 38627, 38755, 70057, 57934, 104007, 9036, 104350, 104351, 104352, 111303, 114099, 58006, 104356, 104358, 104348, 37479, 1281, 104357, 92442, 104347, 46275, 104349, 104355, 111302, 111304, 111305, 114098, 114100, 114101, 70076, 11999, 104647, 2210, 70075, 1315, 12000, 46274, 125530, 139, 1309, 37480, 70077, 104353, 111307, 114102, 125518, 125522, 142, 2372, 15062, 43874, 104354, 125520, 125524, 125526, 127400,
-        ),
+        )(),
     ignore("Closing doors")
         .loc()(
             1240, 1515, 1517, 1520, 1529, 1531,
@@ -26,7 +29,7 @@ export const parsers2: TransportParser2<any, any>[] = [
             34353, 34808, 36737, 36912, 36914, 37000,
             37003, 40109, 40185, 45477, 52475, 72005,
             72009, 85009, 85078, 85079, 112223, 112224,
-        ),
+        )(),
     ignore("Transportations but no parser yet")
         .loc()(
             77745, // Chaos tunnel portals
@@ -45,7 +48,7 @@ export const parsers2: TransportParser2<any, any>[] = [
             16947, 16945, //Lunar isle boat stairs
             83731, // castle wars jumping stones
             5269, // jumping stones north of morytania herb
-        ),
+        )(),
 
     ignore("Miscellanious")
         .loc()(
@@ -72,11 +75,11 @@ export const parsers2: TransportParser2<any, any>[] = [
             85442, // Battle of lumbridge
             49089, // Weird inaccessible ladder at the fishing guild
             1752,
-        ),
+        )(),
 
     simple<{ length: number }>("Fremmenik Rope Bridges")
-        .loc({length: 9})(21306, 21307, 21308, 21309, 21310, 21311, 21312, 21313, 21314, 21315)
-        .loc({length: 5})(21316, 21317, 21318, 21319)
+        .loc({length: 9})(21306, 21307, 21308, 21309, 21310, 21311, 21312, 21313, 21314, 21315)()
+        .loc({length: 5})(21316, 21317, 21318, 21319)()
         .map((builder, {per_loc}) => {
             builder
                 .planeOffset(-1)
@@ -91,17 +94,17 @@ export const parsers2: TransportParser2<any, any>[] = [
         single_side?: direction, move_across?: boolean,
         actions: { up?: number, down?: number },
     }>("Ladders")
-        .loc({actions: {up: 0}})(1746)
-        .loc({actions: {up: 0}})(1747)
-        .loc({actions: {down: 0}, single_side: direction.north})(24355, 36770, 34396, 24362)
-        .loc({actions: {up: 0}, single_side: direction.north})(24354, 36768, 34394, 69499)
-        .loc({actions: {up: 1, down: 2}, single_side: direction.north})(36769)
-        .loc({actions: {down: 0}, single_side: direction.east})(4778)
-        .loc({actions: {up: 0}, single_side: direction.east})(4772)
-        .loc({actions: {down: 0}, single_side: direction.south})(10494)
-        .loc({actions: {up: 0}, single_side: direction.south})(21395)
-        .loc({actions: {down: 0}, single_side: direction.north, move_across: true})(17975)
-        .loc({actions: {up: 0}, single_side: direction.north, move_across: true})(17974)
+        .loc({actions: {up: 0}})(1746)()
+        .loc({actions: {up: 0}})(1747)()
+        .loc({actions: {down: 0}, single_side: direction.north})(24355, 36770, 34396, 24362)()
+        .loc({actions: {up: 0}, single_side: direction.north})(24354, 36768, 34394, 69499)()
+        .loc({actions: {up: 1, down: 2}, single_side: direction.north})(36769)()
+        .loc({actions: {down: 0}, single_side: direction.east})(4778)()
+        .loc({actions: {up: 0}, single_side: direction.east})(4772)()
+        .loc({actions: {down: 0}, single_side: direction.south})(10494)()
+        .loc({actions: {up: 0}, single_side: direction.south})(21395)()
+        .loc({actions: {down: 0}, single_side: direction.north, move_across: true})(17975)()
+        .loc({actions: {up: 0}, single_side: direction.north, move_across: true})(17974)()
         .map((builder, {per_loc}) => {
             const off = per_loc.single_side && per_loc.move_across
                 ? Vector2.scale(-2, direction.toVector(per_loc.single_side))
@@ -134,7 +137,7 @@ export const parsers2: TransportParser2<any, any>[] = [
         }),
 
     simple("Stiles")
-        .loc()(112215)
+        .loc()(112215)()
         .map((builder) => {
 
             builder.action({interactive_area: TileArea.init({x: 0, y: 0, level: 0}, {x: 1, y: 2})},
@@ -152,9 +155,9 @@ export const parsers2: TransportParser2<any, any>[] = [
         level: 1 | -1,
         length?: number
     }>("Simple Staircase")
-        .loc({level: 1})(45483, 2347)
-        .loc({level: -1})(45484, 2348)
-        .loc({level: -1, length: 3})(24359)
+        .loc({level: 1})(45483, 2347)()
+        .loc({level: -1})(45484, 2348)()
+        .loc({level: -1, length: 3})(24359)()
         .map((transport, {per_loc}, loc, usage) => {
             transport.action({
                     interactive_area: TileArea.init(
@@ -171,13 +174,13 @@ export const parsers2: TransportParser2<any, any>[] = [
 
     simple<{ length: number, ticks: number, direction?: direction }>
     ("Log Balances")
-        .loc({length: 5, ticks: 7, direction: direction.south})(2296)
-        .loc({length: 6, ticks: 7})(3931, 3932)
-        .loc({length: 7, ticks: 9})(3933)
-        .loc({length: 4, ticks: 6, direction: direction.south, plane_offset: -1})(9322)
-        .loc({length: 4, ticks: 6, direction: direction.north, plane_offset: -1})(9324)
-        .loc({length: 4, ticks: 5, direction: direction.south, plane_offset: -1})(35997)
-        .loc({length: 4, ticks: 5, direction: direction.north, plane_offset: -1})(35999)
+        .loc({length: 5, ticks: 7, direction: direction.south})(2296)()
+        .loc({length: 6, ticks: 7})(3931, 3932)()
+        .loc({length: 7, ticks: 9})(3933)()
+        .loc({length: 4, ticks: 6, direction: direction.south, plane_offset: -1})(9322)()
+        .loc({length: 4, ticks: 6, direction: direction.north, plane_offset: -1})(9324)()
+        .loc({length: 4, ticks: 5, direction: direction.south, plane_offset: -1})(35997)()
+        .loc({length: 4, ticks: 5, direction: direction.north, plane_offset: -1})(35999)()
         .map((transport, data, loc, usage) => {
 
             const dir = data.per_loc.direction ?? direction.north
@@ -194,7 +197,7 @@ export const parsers2: TransportParser2<any, any>[] = [
         }),
 
     simple("Isafdar Dense Forest")
-        .loc()(3937, 3938, 3939, 3998, 3999)
+        .loc()(3937, 3938, 3939, 3998, 3999)()
         .map((transport, data, loc, usage) => {
 
             // TODO: Quick-travel with quiver equipped
@@ -210,7 +213,7 @@ export const parsers2: TransportParser2<any, any>[] = [
         }),
 
     simple("Lletya Tree")
-        .loc()(8742)
+        .loc()(8742)()
         .map((transport, data, loc, usage) => {
             transport.action({
                     interactive_area: TileArea.init({x: -1, y: 3, level: 0}, {x: 3, y: 1}),
@@ -227,7 +230,29 @@ export const parsers2: TransportParser2<any, any>[] = [
         .loc({base_direction: direction.west})(
             24384, 15536, 1530, 24376, 45476, 17600, 22914, 24381, 34807,
             36846, 11714, 64831, 47512, 4250, 66758, 77969, 34046, 34811,
-            1239, 36022, 11993)
+            1239, 36022, 11993)(),
 
-
+    simple<{
+        time?: number
+    }, {
+        target: TileCoordinates
+    }>("Simple Entrances")
+        .requireInstanceData()
+        .loc()(34395)(
+            [{x: 2796, y: 3614, level: 0}, {target: {"x": 2808, "y": 10002, "level": 0}}],
+            [{"x": 2857, "y": 3578, "level": 0}, {target: {"x": 2269, "y": 4752, "level": 0}}],
+            [{"x": 2847, "y": 3688, "level": 0}, {target: {"x": 2837, "y": 10090, "level": 2}}],
+            [{"x": 2910, "y": 3637, "level": 0}, undefined],
+            [{"x": 2885, "y": 3673, "level": 0}, {target: {"x": 2893, "y": 10074, "level": 2}}],
+            [{"x": 2920, "y": 3654, "level": 0}, undefined],
+        )
+        .loc({time: 9})(110591)([{"x": 2136, "y": 7105, "level": 0}, {target: {"x": 2595, "y": 3412, "level": 0}}])
+        .loc()(56989)([{"x": 2176, "y": 5663, "level": 1}, {target: {"x": 2939, "y": 10198, "level": 0}}])
+        .map((transport, data, loc, usage) => {
+            transport.action({},
+                fixed(data.per_instance?.target!!)
+                    .orientation("toentitybefore")
+                    .time(data.per_loc?.time ?? 1)
+            )
+        })
 ]

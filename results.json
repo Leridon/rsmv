@@ -1,172 +1,50 @@
 [
   {
-    "id": 34395,
+    "id": 56989,
     "uses": [
       {
-        "y": 30,
-        "x": 44,
-        "plane": 0,
-        "rotation": 0,
-        "type": 10,
-        "extra": {
-          "flags": 0,
-          "rotation": null,
-          "translateX": null,
-          "translateY": null,
-          "translateZ": null,
-          "scale": null,
-          "scaleX": null,
-          "scaleY": null,
-          "scaleZ": null
-        },
-        "box": {
-          "topleft": {
-            "x": 2796,
-            "y": 3617
-          },
-          "botright": {
-            "x": 2799,
-            "y": 3614
-          },
-          "level": 0
-        }
-      },
-      {
-        "y": 58,
-        "x": 41,
-        "plane": 0,
-        "rotation": 3,
-        "type": 10,
-        "extra": {
-          "flags": 0,
-          "rotation": null,
-          "translateX": null,
-          "translateY": null,
-          "translateZ": null,
-          "scale": null,
-          "scaleX": null,
-          "scaleY": null,
-          "scaleZ": null
-        },
-        "box": {
-          "topleft": {
-            "x": 2857,
-            "y": 3581
-          },
-          "botright": {
-            "x": 2860,
-            "y": 3578
-          },
-          "level": 0
-        }
-      },
-      {
-        "y": 40,
-        "x": 31,
-        "plane": 0,
+        "y": 31,
+        "x": 0,
+        "plane": 1,
         "rotation": 3,
         "type": 10,
         "extra": null,
         "box": {
           "topleft": {
-            "x": 2847,
-            "y": 3691
+            "x": 2176,
+            "y": 5664
           },
           "botright": {
-            "x": 2850,
-            "y": 3688
+            "x": 2176,
+            "y": 5663
           },
-          "level": 0
-        }
-      },
-      {
-        "y": 53,
-        "x": 30,
-        "plane": 0,
-        "rotation": 3,
-        "type": 10,
-        "extra": {
-          "flags": 0,
-          "rotation": null,
-          "translateX": null,
-          "translateY": null,
-          "translateZ": null,
-          "scale": null,
-          "scaleX": null,
-          "scaleY": null,
-          "scaleZ": null
+          "level": 1
         },
-        "box": {
-          "topleft": {
-            "x": 2910,
-            "y": 3640
-          },
-          "botright": {
-            "x": 2913,
-            "y": 3637
-          },
-          "level": 0
-        }
-      },
-      {
-        "y": 25,
-        "x": 5,
-        "plane": 0,
-        "rotation": 2,
-        "type": 10,
-        "extra": null,
-        "box": {
-          "topleft": {
-            "x": 2885,
-            "y": 3676
-          },
-          "botright": {
-            "x": 2888,
-            "y": 3673
-          },
-          "level": 0
-        }
-      },
-      {
-        "y": 6,
-        "x": 40,
-        "plane": 0,
-        "rotation": 1,
-        "type": 10,
-        "extra": null,
-        "box": {
-          "topleft": {
-            "x": 2920,
-            "y": 3657
-          },
-          "botright": {
-            "x": 2923,
-            "y": 3654
-          },
-          "level": 0
+        "origin": {
+          "x": 2176,
+          "y": 5663,
+          "level": 1
         }
       }
     ],
     "location": {
-      "actions_0": "Enter",
-      "length": 4,
-      "width": 4,
-      "unknown_16": true,
       "deletable": true,
-      "contrast": 15,
-      "ambient": 25,
-      "translateY": 120,
+      "probably_nocollision": true,
+      "ambient": 15,
+      "contrast": 10,
+      "width": 2,
+      "actions_0": "Enter",
       "is_members": true,
-      "unknown_40": true,
+      "tileplacement_related_c4": 3,
       "models": [
         {
           "type": 10,
           "values": [
-            79575
+            62555
           ]
         }
       ],
-      "name": "Cave entrance",
+      "name": "Exit",
       "action_cursors_0": 57,
       "occludes_2": false
     }
