@@ -5,7 +5,7 @@ import {ChunkData, classicChunkSize, getMapsquareData, MapRect, mapsquareObjects
 import {EngineCache} from "../3d/modeltothree"
 import {ScriptOutput} from "../scriptrunner"
 import path from "path"
-import {Vector2} from 'zykloplib/math/Vector2'
+import {Vector2} from '../zykloplib/math/Vector2'
 import {direction} from "../zykloplib/runescape/movement"
 import center = direction.center
 import east = direction.east
@@ -17,9 +17,165 @@ import southwest = direction.southwest
 import northwest = direction.northwest
 import northeast = direction.northeast
 import {time} from "../zykloplib/util"
-import {TileRectangle} from "../zykloplib/runescape/coordinates";
-import tr = TileRectangle.tr;
+import {floor_t, TileCoordinates, TileRectangle} from "../zykloplib/runescape/coordinates";
 import {classicModifyTileGrid} from "../3d/classicmap";
+import {floor} from "three/examples/jsm/nodes/math/MathNode";
+
+const mapsize = {
+    chunksx: 100,
+    chunksy: 200,
+    chunksize: 64,
+    floors: 4,
+}
+
+class CollisionMap {
+    private data: Uint8Array
+
+    constructor(private cache: EngineCache) {
+        this.data = new Uint8Array(
+            (mapsize.chunksx * mapsize.chunksize + 2) * (mapsize.chunksy * mapsize.chunksize + 2) * mapsize.floors
+        ).fill(255)
+    }
+
+    getI(coords: TileCoordinates): number {
+        return coords.level * (mapsize.chunksx * mapsize.chunksy * mapsize.chunksize * mapsize.chunksize)
+            + (coords.y + 1) * (mapsize.chunksx * mapsize.chunksize)
+            + (coords.x + 1)
+    }
+
+    block(i: number | undefined, direction: direction) {
+        if (i != undefined) this.data[i] &= 255 - [0, 1, 2, 4, 8, 16, 32, 64, 128][direction]
+    }
+
+    feedChunk(grid: TileGrid, chunk: Vector2) {
+
+        const block_map: { blocked_direction: direction, no_symmetry?: boolean, blocks: { from: direction, to: direction[] }[] }[] = [
+            {
+                blocked_direction: center, no_symmetry: true, blocks: [
+                    {from: west, to: [east, southeast, northeast]},
+                    {from: north, to: [south, southeast, southwest]},
+                    {from: east, to: [west, southwest, northwest]},
+                    {from: south, to: [north, northwest, northeast]},
+                    {from: northwest, to: [southeast]},
+                    {from: northeast, to: [southwest]},
+                    {from: southeast, to: [northwest]},
+                    {from: southwest, to: [northeast]},
+                ],
+            },
+            {
+                blocked_direction: west, blocks: [
+                    {from: center, to: [west, southwest, northwest]},
+                    {from: west, to: [northeast, southeast]},
+                ],
+            },
+            {
+                blocked_direction: north, blocks: [
+                    {from: center, to: [north, northeast, northwest]},
+                    {from: north, to: [southeast, southwest]},
+                ],
+            },
+            {
+                blocked_direction: east, blocks: [
+                    {from: center, to: [east, southeast, northeast]},
+                    {from: east, to: [northwest, southwest]},
+                ],
+            },
+            {
+                blocked_direction: south, blocks: [
+                    {from: center, to: [south, southeast, southwest]},
+                    {from: south, to: [northwest, northeast]},
+                ],
+            },
+            //ordinal blocks prevent the direct diagonal movement in both directions
+            {blocked_direction: northwest, blocks: [{from: center, to: [direction.northwest]}]},
+            {blocked_direction: northeast, blocks: [{from: center, to: [direction.northeast]}]},
+            {blocked_direction: southeast, blocks: [{from: center, to: [direction.southeast]}]},
+            {blocked_direction: southwest, blocks: [{from: center, to: [direction.southwest]}]},
+        ]
+
+        block_map.sort((a, b) => a.blocked_direction - b.blocked_direction)
+
+        const origin = Vector2.scale(mapsize.chunksize, chunk)
+
+        for (let tile_y = 0; tile_y < mapsize.chunksize; tile_y++) {
+            for (let tile_x = 0; tile_x < mapsize.chunksize; tile_x++) {
+                for (let floor = 0; floor < mapsize.floors; floor++) {
+                    const x = origin.x + tile_x
+                    const y = origin.y + tile_y
+
+                    const coords: TileCoordinates = {
+                        x, y, level: floor as floor_t
+                    }
+
+                    const tile = grid.getTile(x, y, floor)
+
+                    if (!tile) continue
+
+                    block_map.forEach(entry => {
+                        if (blocked(tile, entry.blocked_direction)) {
+                            entry.blocks.forEach(({from, to}) => {
+                                const from_off = direction.toVector(from)
+                                const from_i = this.getI(TileCoordinates.move(coords, from_off))
+
+                                to.forEach(to => {
+                                    const to_off = direction.toVector(to)
+
+                                    this.block(from_i, to)
+
+                                    if (!entry.no_symmetry) {
+                                        const to_i = this.getI(TileCoordinates.move(coords, Vector2.add(from_off, to_off)))
+                                        this.block(to_i, direction.invert(to))
+                                    }
+                                })
+                            })
+                        }
+                    })
+                }
+            }
+        }
+    }
+
+    async construct(): Promise<this> {
+        for (let x = 0; x < mapsize.chunksx; x++) {
+            for (let y = 0; y < mapsize.chunksy; y++) {
+                let {grid} = await time(`parse-${x}-${y}`, async () => await parseMapsquare(this.cache,
+                    x, y, {
+                        padfloor: true,
+                        invisibleLayers: true,
+                        collision: true,
+                        map2d: false,
+                        skybox: false,
+                    },
+                ))
+
+                await time(`feed-${x}-${y}`, () => this.feedChunk(grid, {x, y}))
+            }
+        }
+
+        return this
+    }
+
+    getFile(file: Vector2, level: floor_t, chunks_per_file: number): Uint8Array {
+
+        const data = new Uint8Array(chunks_per_file * chunks_per_file * mapsize.chunksize * mapsize.chunksize)
+
+        for (let delta_y = 0; delta_y < chunks_per_file * mapsize.chunksize; delta_y++) {
+
+            const y = file.y * chunks_per_file * mapsize.chunksize + delta_y
+
+            const i = this.getI({
+                x: file.x * chunks_per_file,
+                y: y,
+                level: level
+            })
+            const slice = this.data.slice(i, i + chunks_per_file * mapsize.chunksize)
+
+            data.set(slice, delta_y * chunks_per_file * mapsize.chunksize)
+        }
+
+        return data
+    }
+}
 
 export async function parseMapsquares(engine: EngineCache, rect: MapRect, opts?: ParsemapOpts) {
     let chunkfloorpadding = (opts?.padfloor ? 20 : 0);//TODO same as max(blending kernel,max loc size), put this in a const somewhere
@@ -289,7 +445,7 @@ function optimizedCollisionFile2(grid: TileGrid, floor: number, start_x: number,
 }
 
 const chunk_meta = {
-    chunks_per_file: 20,
+    chunks_per_file: 10,
     chunks_z: 200,
     chunks_x: 100,
 }
@@ -298,7 +454,7 @@ type FileIndex = {
     file_x: number,
     file_z: number,
     floors: {
-        floor: number,
+        floor: floor_t,
         file_name: string,
     }[]
 }
@@ -313,7 +469,7 @@ export function collision_file_index_full(directory: string): FileIndex[] {
                 file_z: file_z,
                 floors: [0, 1, 2, 3].map((floor) => {
                     return {
-                        floor: floor,
+                        floor: floor as floor_t,
                         file_name: `${directory}/collision-${file_x}-${file_z}-${floor}.bin`,
                     }
                 }),
@@ -326,60 +482,17 @@ export function collision_file_index_full(directory: string): FileIndex[] {
 
 
 export async function create_collision_files(output: ScriptOutput, cache: EngineCache, file_index: FileIndex[]) {
+    const data = await new CollisionMap(cache).construct()
+
     for (let {file_x, file_z, floors} of file_index) {
-        if (floors.every(({file_name}) => fs.existsSync(file_name))) {
-            console.log(`All files for ${file_x}|${file_z} exist, skipping`)
-            continue
-        }
+        floors.forEach(floor => {
+            let file_data = data.getFile({x: file_x, y: file_z}, floor.floor, chunk_meta.chunks_per_file)
 
+            file_data = pako.deflate(file_data)
 
-        // TODO: This breaks after the rebase! Parse multiple chunks.
-        /*
-            xsize: (chunk_meta.chunks_per_file + 1) + (file_x * chunk_meta.chunks_per_file < chunk_meta.chunks_x ? 1 : 0),
-            zsize: (chunk_meta.chunks_per_file + 1) + (file_z * chunk_meta.chunks_per_file < chunk_meta.chunks_z ? 1 : 0),
+            fs.mkdirSync(path.dirname(floor.file_name), {recursive: true})
 
-
-         */
-
-        let {grid} = await time(`parse-${file_x}-${file_z}`, async () => await parseMapsquares(cache,
-            {
-                x: Math.max(0, file_x * chunk_meta.chunks_per_file - 1),
-                z: Math.max(0, file_z * chunk_meta.chunks_per_file - 1),
-                xsize: (chunk_meta.chunks_per_file + 1) + (file_x * chunk_meta.chunks_per_file < chunk_meta.chunks_x ? 1 : 0),
-                zsize: (chunk_meta.chunks_per_file + 1) + (file_z * chunk_meta.chunks_per_file < chunk_meta.chunks_z ? 1 : 0)
-            }, {
-                padfloor: true,
-                invisibleLayers: true,
-                collision: true,
-                map2d: false,
-                skybox: false,
-            },
-        ))
-
-        if (!grid) {
-            console.log("square is null, skipping")
-            continue
-        }
-
-        for (let {floor, file_name} of floors) {
-            if (fs.existsSync(file_name)) {
-                console.log(`Skipping existing file ${file_name}`)
-                continue
-            }
-
-            await time(`convert-${file_x}-${file_z}-${floor}`, () => {
-                let file = optimizedCollisionFile2(grid, floor,
-                    file_x * chunk_meta.chunks_per_file * 64,
-                    file_z * chunk_meta.chunks_per_file * 64,
-                    chunk_meta.chunks_per_file * 64,
-                )
-
-                file = pako.deflate(file)
-
-                fs.mkdirSync(path.dirname(file_name), {recursive: true})
-
-                fs.writeFileSync(file_name, file)
-            })
-        }
+            fs.writeFileSync(floor.file_name, file_data)
+        })
     }
 }
