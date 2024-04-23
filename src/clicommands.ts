@@ -1,10 +1,10 @@
-import {ReadCacheSource, filerange, filesource} from "./cliparser";
-import {command, option, flag} from "cmd-ts";
+import {filerange, ReadCacheSource} from "./cliparser";
+import * as cmdts from "cmd-ts";
+import {command, flag, option} from "cmd-ts";
 import {cacheFileDecodeModes, cacheFileJsonModes} from "./scripts/filetypes";
 import {CLIScriptFS, CLIScriptOutput, ScriptFS, ScriptOutput} from "./scriptrunner";
 import {defaultTestDecodeOpts, testDecode, testDecodeHistoric} from "./scripts/testdecode";
 import {extractCacheFiles, writeCacheFiles} from "./scripts/extractfiles";
-import * as cmdts from "cmd-ts";
 import {indexOverview} from "./scripts/indexoverview";
 import {diffCaches} from "./scripts/cachediff";
 import {quickChatLookup} from "./scripts/quickchatlookup";
@@ -16,8 +16,7 @@ import {getSequenceGroups} from "./scripts/groupskeletons";
 import {CacheFileSource} from "./cache";
 import {EngineCache} from "./3d/modeltothree";
 import {collision_file_index_full, create_collision_files} from "./blocking/blocking";
-import {getMapsquareData, MapRect, resolveMorphedObject} from "./3d/mapsquare";
-import {mapsquare_locations} from "../generated/mapsquare_locations";
+import {MapRect, parseMapsquare, WorldLocation} from "./3d/mapsquare";
 import {floor_t, TileRectangle} from "./zykloplib/runescape/coordinates";
 import {Rectangle} from "./zykloplib/math";
 import {time} from "./zykloplib/util";
@@ -348,52 +347,72 @@ export function cliApi(ctx: CliApiContext) {
 
             let all: Map<number, LocWithUsages> = new Map()
 
-            async function uses(tile_rect: MapRect, loc: mapsquare_locations["locations"][number]): Promise<void> {
-                let resolved = (await resolveMorphedObject(cache, loc.id)).morphedloc
+            async function uses(tile_rect: MapRect, loc: WorldLocation): Promise<void> {
+                const entry: LocWithUsages | null = await (async () => {
+                    if (all.has(loc.locid)) return all.get(loc.locid)!!
 
-                if (!resolved.name) return
-                if (!resolved.actions_0) return
+                    const resolved = loc.location
 
-                const uses: LocWithUsages["uses"] = loc.uses.map(use => {
-                    let [width, height] = use.rotation % 2 == 0
-                        ? [resolved.width ?? 1, resolved.length ?? 1]
-                        : [resolved.length ?? 1, resolved.width ?? 1]
+                    if (!resolved.name) return null
 
+                    const actions = getActions(resolved)
 
-                    const box = TileRectangle.lift(
-                        Rectangle.from(
-                            {x: tile_rect.x + use.x, y: tile_rect.z + use.y},
-                            {x: tile_rect.x + use.x + width - 1, y: tile_rect.z + use.y + height - 1},
-                        ),
-                        use.plane as floor_t,
-                    )
+                    if (actions.length == 0) return null
 
-                    return ({
-                        ...use,
-                        box: box,
-                        origin: TileRectangle.bl(box),
-                    })
-                })
+                    const e = {
+                        id: loc.locid,
+                        uses: [],
+                        location: resolved
+                    }
 
-                const el = all.get(loc.id)
+                    all.set(loc.locid, e)
+                    return e
+                })()
 
-                if (el) el.uses.push(...uses)
-                else all.set(loc.id, {id: loc.id, uses: uses, location: resolved})
+                if (!entry) return
+
+                let [width, height] = loc.rotation % 2 == 0
+                    ? [entry.location.width ?? 1, entry.location.length ?? 1]
+                    : [entry.location.length ?? 1, entry.location.width ?? 1]
+
+                const box = TileRectangle.lift(
+                    Rectangle.from(
+                        {x: tile_rect.x + loc.x, y: tile_rect.z + loc.z},
+                        {x: tile_rect.x + loc.x + width - 1, y: tile_rect.z + loc.z + height - 1},
+                    ),
+                    loc.effectiveLevel as floor_t,
+                )
+
+                entry.uses.push({
+                    ...loc,
+                    location: undefined,
+                    box: box,
+                    origin: TileRectangle.bl(box),
+                } as any)
             }
 
-            let area: MapRect | null = null // {x: 20, z: 20, xsize: 30, zsize: 30}
+            let area: MapRect | null = null // {x: 46, z: 52, xsize: 1, zsize: 1}
 
             await time("Collecting Locs", async () => {
                 await iterate_chunks(area, async (x, y) => {
-                    const data = await getMapsquareData(cache, x, y)
+                    await time(`Collect ${x}-${y}`, async () => {
+                        const {grid, chunk} = await parseMapsquare(cache, x, y)
 
-                    if (data) data.rawlocs.forEach(loc => uses(data.tilerect, loc))
+                        console.log(`${chunk?.rawlocs.length} raw vs ${chunk?.locs.length} processed`)
+
+                        if (chunk) await Promise.all(chunk.locs.map(async loc => await uses(chunk.tilerect, loc)))
+                    })
                 })
             })
 
-            let out = JSON.stringify(Object.fromEntries(Array.from(all.keys()).map(k => [k, all.get(k)])), null, 4)
+            let out = Object.fromEntries(Array.from(all.keys()).map(k => [k, all.get(k)]))
 
-            fs.writeFileSync("locs.json", out)
+            const n = Object.values(out).map(e => e?.uses.length).reduce((a, b) => a!! + b!!, 0)
+
+            console.log(`Total of ${n} loc instances`)
+
+            fs.writeFileSync("locs.json", JSON.stringify(out))
+
         },
     })
 
@@ -530,11 +549,11 @@ export function cliApi(ctx: CliApiContext) {
             }
 
             let filter: filter_t = {
-                //names: ["tree"],
-                actions: ["use", "enter", "climb", "crawl", "scale", "pass", "jump", "leave"],
+                names: ["Door"],
+                actions: ["open", "use", "enter", "climb", "crawl", "scale", "pass", "jump", "leave"],
                 without_parser: true,
-                object_id: 56989,
-                //area: {"topleft":{"x":2175,"y":5667},"botright":{"x":2179,"y":5662},"level":0},
+                //object_id: 56989,
+                area: {"topleft": {"x": 2904, "y": 3536}, "botright": {"x": 2922, "y": 3515}, "level": 0},
             }
 
             let data: Record<number, LocWithUsages> = JSON.parse(fs.readFileSync("locs.json", "utf-8"))
