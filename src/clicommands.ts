@@ -61,47 +61,21 @@ export function cliApi(ctx: CliApiContext) {
 			})
 		} as const;
 	}
-	const testdecode = command({
-		name: "testdecode",
-		args: {
-			...filesource,
-			...filerange,
-			...saveArg("save"),
-			mode: option({ long: "mode", short: "m", description: `A json decode mode ${Object.keys(cacheFileJsonModes).join(", ")}` })
-		},
-		handler: async (args) => {
-			let errdir = args.save;
-			let olderrfiles = await errdir.readDir(".");
-			if (olderrfiles.find(q => !q.name.match(/^(err|pass|fail)-/))) {
-				throw new Error("file not starting with 'err' in error dir");
-			}
-			await Promise.all(olderrfiles.map(q => errdir.unlink(q.name)));
-
-    function saveArg(name: string) {
-        return {
-            save: option({
-                long: "save",
-                short: "s",
-                type: cliFsOutputType(ctx, name)
-            })
-        } as const;
-    }
-
     const testdecode = command({
         name: "testdecode",
         args: {
             ...filesource,
             ...filerange,
             ...saveArg("save"),
-            mode: option({long: "mode", short: "m", description: `A json decode mode ${Object.keys(cacheFileJsonModes).join(", ")}`})
+            mode: option({ long: "mode", short: "m", description: `A json decode mode ${Object.keys(cacheFileJsonModes).join(", ")}` })
         },
         handler: async (args) => {
             let errdir = args.save;
             let olderrfiles = await errdir.readDir(".");
-            if (olderrfiles.find(q => !q.match(/^(err|pass|fail)-/))) {
+            if (olderrfiles.find(q => !q.name.match(/^(err|pass|fail)-/))) {
                 throw new Error("file not starting with 'err' in error dir");
             }
-            await Promise.all(olderrfiles.map(q => errdir.unlink(q)));
+            await Promise.all(olderrfiles.map(q => errdir.unlink(q.name)));
 
             let output = ctx.getConsole();
             let source = await args.source();
