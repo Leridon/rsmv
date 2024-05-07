@@ -133,6 +133,22 @@ export namespace direction {
         return vectors[d]
     }
 
+    export function continuations(dir: direction): direction[] {
+        const direction_continuations: direction[][] = [
+            [],
+            [west],
+            [north],
+            [east],
+            [south],
+            [north, west, northwest],
+            [north, east, northeast],
+            [south, east, southeast],
+            [south, west, southwest]
+        ]
+
+        return direction_continuations[dir]
+    }
+
     export function fromDelta(v: Vector2): direction {
         return [
             [8, 4, 7],

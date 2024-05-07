@@ -7,19 +7,19 @@ import {ScriptOutput} from "../scriptrunner"
 import path from "path"
 import {Vector2} from '../zykloplib/math/Vector2'
 import {direction} from "../zykloplib/runescape/movement"
-import center = direction.center
-import east = direction.east
-import south = direction.south
-import west = direction.west
-import north = direction.north
-import southeast = direction.southeast
-import southwest = direction.southwest
-import northwest = direction.northwest
-import northeast = direction.northeast
 import {time} from "../zykloplib/util"
-import {floor_t, TileCoordinates, TileRectangle} from "../zykloplib/runescape/coordinates";
+import {floor_t, TileCoordinates} from "../zykloplib/runescape/coordinates";
 import {classicModifyTileGrid} from "../3d/classicmap";
-import {floor} from "three/examples/jsm/nodes/math/MathNode";
+import {TileArea} from "../zykloplib/runescape/coordinates/TileArea";
+import center = direction.center;
+import east = direction.east;
+import south = direction.south;
+import west = direction.west;
+import north = direction.north;
+import southeast = direction.southeast;
+import southwest = direction.southwest;
+import northwest = direction.northwest;
+import northeast = direction.northeast;
 
 const mapsize = {
     chunksx: 100,
@@ -27,6 +27,57 @@ const mapsize = {
     chunksize: 64,
     floors: 4,
 }
+
+const hardcoded_npc_blocks: TileArea[] = [
+    {"origin": {"x": 3051, "y": 3259, "level": 0}},
+    {"origin": {"x": 3050, "y": 3256, "level": 0}},
+    {"origin": {"x": 3613, "y": 3491, "level": 0}},
+]
+
+const block_map: { blocked_direction: direction, no_symmetry?: boolean, blocks: { from: direction, to: direction[] }[] }[] = [
+    {
+        blocked_direction: center, no_symmetry: true, blocks: [
+            {from: west, to: [east, southeast, northeast]},
+            {from: north, to: [south, southeast, southwest]},
+            {from: east, to: [west, southwest, northwest]},
+            {from: south, to: [north, northwest, northeast]},
+            {from: northwest, to: [southeast]},
+            {from: northeast, to: [southwest]},
+            {from: southeast, to: [northwest]},
+            {from: southwest, to: [northeast]},
+        ],
+    },
+    {
+        blocked_direction: west, blocks: [
+            {from: center, to: [west, southwest, northwest]},
+            {from: west, to: [northeast, southeast]},
+        ],
+    },
+    {
+        blocked_direction: north, blocks: [
+            {from: center, to: [north, northeast, northwest]},
+            {from: north, to: [southeast, southwest]},
+        ],
+    },
+    {
+        blocked_direction: east, blocks: [
+            {from: center, to: [east, southeast, northeast]},
+            {from: east, to: [northwest, southwest]},
+        ],
+    },
+    {
+        blocked_direction: south, blocks: [
+            {from: center, to: [south, southeast, southwest]},
+            {from: south, to: [northwest, northeast]},
+        ],
+    },
+    //ordinal blocks prevent the direct diagonal movement in both directions
+    {blocked_direction: northwest, blocks: [{from: center, to: [direction.northwest]}]},
+    {blocked_direction: northeast, blocks: [{from: center, to: [direction.northeast]}]},
+    {blocked_direction: southeast, blocks: [{from: center, to: [direction.southeast]}]},
+    {blocked_direction: southwest, blocks: [{from: center, to: [direction.southwest]}]},
+]
+    .sort((a, b) => a.blocked_direction - b.blocked_direction)
 
 class CollisionMap {
     private data: Uint8Array
@@ -47,54 +98,27 @@ class CollisionMap {
         if (i != undefined) this.data[i] &= 255 - [0, 1, 2, 4, 8, 16, 32, 64, 128][direction]
     }
 
+    feedTile(coords: TileCoordinates, block: direction) {
+        const entry = block_map[block]
+
+        entry.blocks.forEach(({from, to}) => {
+            const from_off = direction.toVector(from)
+            const from_i = this.getI(TileCoordinates.move(coords, from_off))
+
+            to.forEach(to => {
+                const to_off = direction.toVector(to)
+
+                this.block(from_i, to)
+
+                if (!entry.no_symmetry) {
+                    const to_i = this.getI(TileCoordinates.move(coords, Vector2.add(from_off, to_off)))
+                    this.block(to_i, direction.invert(to))
+                }
+            })
+        })
+    }
+
     feedChunk(grid: TileGrid, chunk: Vector2) {
-
-        const block_map: { blocked_direction: direction, no_symmetry?: boolean, blocks: { from: direction, to: direction[] }[] }[] = [
-            {
-                blocked_direction: center, no_symmetry: true, blocks: [
-                    {from: west, to: [east, southeast, northeast]},
-                    {from: north, to: [south, southeast, southwest]},
-                    {from: east, to: [west, southwest, northwest]},
-                    {from: south, to: [north, northwest, northeast]},
-                    {from: northwest, to: [southeast]},
-                    {from: northeast, to: [southwest]},
-                    {from: southeast, to: [northwest]},
-                    {from: southwest, to: [northeast]},
-                ],
-            },
-            {
-                blocked_direction: west, blocks: [
-                    {from: center, to: [west, southwest, northwest]},
-                    {from: west, to: [northeast, southeast]},
-                ],
-            },
-            {
-                blocked_direction: north, blocks: [
-                    {from: center, to: [north, northeast, northwest]},
-                    {from: north, to: [southeast, southwest]},
-                ],
-            },
-            {
-                blocked_direction: east, blocks: [
-                    {from: center, to: [east, southeast, northeast]},
-                    {from: east, to: [northwest, southwest]},
-                ],
-            },
-            {
-                blocked_direction: south, blocks: [
-                    {from: center, to: [south, southeast, southwest]},
-                    {from: south, to: [northwest, northeast]},
-                ],
-            },
-            //ordinal blocks prevent the direct diagonal movement in both directions
-            {blocked_direction: northwest, blocks: [{from: center, to: [direction.northwest]}]},
-            {blocked_direction: northeast, blocks: [{from: center, to: [direction.northeast]}]},
-            {blocked_direction: southeast, blocks: [{from: center, to: [direction.southeast]}]},
-            {blocked_direction: southwest, blocks: [{from: center, to: [direction.southwest]}]},
-        ]
-
-        block_map.sort((a, b) => a.blocked_direction - b.blocked_direction)
-
         const origin = Vector2.scale(mapsize.chunksize, chunk)
 
         for (let tile_y = 0; tile_y < mapsize.chunksize; tile_y++) {
@@ -136,6 +160,12 @@ class CollisionMap {
     }
 
     async construct(): Promise<this> {
+        hardcoded_npc_blocks.forEach(block => {
+            TileArea.activate(block).getTiles().forEach(tile => {
+                this.feedTile(tile, direction.center)
+            })
+        })
+
         for (let x = 0; x < mapsize.chunksx; x++) {
             for (let y = 0; y < mapsize.chunksy; y++) {
                 let {grid} = await time(`parse-${x}-${y}`, async () => await parseMapsquare(this.cache,
@@ -164,7 +194,7 @@ class CollisionMap {
             const y = file.y * chunks_per_file * mapsize.chunksize + delta_y
 
             const i = this.getI({
-                x: file.x * chunks_per_file,
+                x: file.x * chunks_per_file * mapsize.chunksize,
                 y: y,
                 level: level
             })
@@ -445,7 +475,7 @@ function optimizedCollisionFile2(grid: TileGrid, floor: number, start_x: number,
 }
 
 const chunk_meta = {
-    chunks_per_file: 10,
+    chunks_per_file: 20,
     chunks_z: 200,
     chunks_x: 100,
 }

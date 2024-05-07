@@ -48,7 +48,7 @@ export namespace Transportation {
     export namespace EntityAction {
         export function findApplicable(action: EntityAction, tile: TileCoordinates): EntityActionMovement {
             return action.movement.find(movement => {
-                return !movement.valid_from || TileArea.contains(movement.valid_from, tile)
+                return !movement.valid_from || TileArea.activate(movement.valid_from).query(tile)
             })!!
         }
     }
