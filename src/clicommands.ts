@@ -44,30 +44,32 @@ export function cliFsOutputType(ctx: CliApiContext, fsname: string): cmdts.Type<
 
 
 export function cliApi(ctx: CliApiContext) {
-	const filesource = {
-		source: cmdts.option({
-			long: "source",
-			short: "o",
-			type: ReadCacheSource,
-			defaultValue: ctx.getDefaultCache ? () => async () => ctx.getDefaultCache!() : undefined
-		})
-	};
-	function saveArg(name: string) {
-		return {
-			save: option({
-				long: "save",
-				short: "s",
-				type: cliFsOutputType(ctx, name)
-			})
-		} as const;
-	}
+    const filesource = {
+        source: cmdts.option({
+            long: "source",
+            short: "o",
+            type: ReadCacheSource,
+            defaultValue: ctx.getDefaultCache ? () => async () => ctx.getDefaultCache!() : undefined
+        })
+    };
+
+    function saveArg(name: string) {
+        return {
+            save: option({
+                long: "save",
+                short: "s",
+                type: cliFsOutputType(ctx, name)
+            })
+        } as const;
+    }
+
     const testdecode = command({
         name: "testdecode",
         args: {
             ...filesource,
             ...filerange,
             ...saveArg("save"),
-            mode: option({ long: "mode", short: "m", description: `A json decode mode ${Object.keys(cacheFileJsonModes).join(", ")}` })
+            mode: option({long: "mode", short: "m", description: `A json decode mode ${Object.keys(cacheFileJsonModes).join(", ")}`})
         },
         handler: async (args) => {
             let errdir = args.save;
@@ -351,8 +353,8 @@ export function cliApi(ctx: CliApiContext) {
 
                 const box = TileRectangle.lift(
                     Rectangle.from(
-                        {x: tile_rect.x + loc.x, y: tile_rect.z + loc.z},
-                        {x: tile_rect.x + loc.x + width - 1, y: tile_rect.z + loc.z + height - 1},
+                        {x: loc.x, y: loc.z},
+                        {x: loc.x + width - 1, y: loc.z + height - 1},
                     ),
                     loc.effectiveLevel as floor_t,
                 )
