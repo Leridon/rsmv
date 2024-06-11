@@ -11,7 +11,7 @@ import {quickChatLookup} from "./scripts/quickchatlookup";
 import {scrapePlayerAvatars} from "./scripts/scrapeavatars";
 import {fileHistory} from "./scripts/filehistory";
 import {openrs2Ids} from "./scripts/openrs2ids";
-import {extractCluecoords} from "./scripts/cluecoords";
+import {extractCluecoords, extractCluecoords2} from "./scripts/cluecoords";
 import {getSequenceGroups} from "./scripts/groupskeletons";
 import {CacheFileSource} from "./cache";
 import { indexOverview } from "./scripts/indexoverview";
@@ -180,6 +180,18 @@ export function cliApi(ctx: CliApiContext) {
         handler: async (args) => {
             let output = ctx.getConsole();
             await output.run(extractCluecoords, args.save, await args.source());
+        }
+    });
+
+    const cluecoords2 = command({
+        name: "download2",
+        args: {
+            ...filesource,
+            ...saveArg("extract")
+        },
+        handler: async (args) => {
+            let output = ctx.getConsole();
+            await output.run(extractCluecoords2, args.save, await args.source());
         }
     });
 
@@ -688,7 +700,7 @@ export function cliApi(ctx: CliApiContext) {
     let subcommands = cmdts.subcommands({
         name: "",
         cmds: {
-            extract, indexoverview, testdecode, diff, quickchat, scrapeavatars, edit, historicdecode, openrs2ids, filehist, cluecoords, sequencegroups,
+            extract, indexoverview, testdecode, diff, quickchat, scrapeavatars, edit, historicdecode, openrs2ids, filehist, cluecoords, cluecoords2, sequencegroups,
             collisions,
             leridon,
             locs,
