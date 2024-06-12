@@ -143,7 +143,7 @@ export namespace Path {
             }
         }
 
-        export function fromCacheCursor(id: number | null | undefined) {
+        export function fromCacheCursor(id: number | null | undefined): CursorType {
             const table: Record<number, CursorType> = {
                 0: "generic",
                 44: "talk",
@@ -155,7 +155,7 @@ export namespace Path {
                 208: "discover",
             }
 
-            return table[id ?? 0] || "generic"
+            return table[id ?? 0] ?? "generic"
         }
 
     }

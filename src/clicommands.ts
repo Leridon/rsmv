@@ -16,16 +16,11 @@ import {getSequenceGroups} from "./scripts/groupskeletons";
 import {CacheFileSource} from "./cache";
 import {EngineCache} from "./3d/modeltothree";
 import {collision_file_index_full, create_collision_files} from "./blocking/blocking";
-import {MapRect, parseMapsquare, WorldLocation} from "./3d/mapsquare";
-import {floor_t, TileRectangle} from "./zykloplib/runescape/coordinates";
-import {Rectangle} from "./zykloplib/math";
-import {time} from "./zykloplib/util";
+import {MapRect} from "./3d/mapsquare";
 import fs from "fs";
-import {transportation_parsers, transportation_rectangle_blacklists} from "./transportation/parsers";
-import {parsers2} from "./transportation/parsers2";
-import {LocUtil} from "./transportation/util/LocUtil";
-import LocWithUsages = LocUtil.LocWithUsages;
-import getActions = LocUtil.getActions;
+import {parse} from "./opdecoder";
+import {ProcessedCacheTypes} from "./zykloplib/runescape/ProcessedCacheTypes";
+import Prototype = ProcessedCacheTypes.Prototype;
 
 
 export type CliApiContext = {
@@ -90,31 +85,31 @@ export function cliApi(ctx: CliApiContext) {
         }
     });
 
-	const extract = command({
-		name: "extract",
-		args: {
-			...filesource,
-			...filerange,
-			...saveArg("extract"),
-			mode: option({ long: "mode", short: "m", type: cmdts.string, defaultValue: () => "bin", description: `A decode mode ${Object.keys(cacheFileDecodeModes).join(", ")}` }),
-			edit: flag({ long: "edit", short: "e" }),
-			skipread: flag({ long: "noread", short: "n" }),
-			fixhash: flag({ long: "fixhash", short: "h" }),
-			batched: flag({ long: "batched", short: "b" }),
-			batchlimit: option({ long: "batchsize", type: cmdts.number, defaultValue: () => -1 }),
-			keepbuffers: flag({ long: "keepbuffers" }),
-			relativecs2comps: flag({ long: "relativecs2comps" })
-		},
-		async handler(args) {
-			let output = ctx.getConsole();
-			let source = await args.source({ writable: args.edit });
-			let decoderflags: Record<string, string> = {};
-			//decoder-specific flags, might want to make them into a value instead of a flag at some point
-			if (args.keepbuffers) { decoderflags.keepbuffers = "true"; }
-			if (args.relativecs2comps) { decoderflags.relativecs2comps = "true"; }
-			await output.run(extractCacheFiles, args.save, source, args, decoderflags);
-		}
-	});
+    const extract = command({
+        name: "extract",
+        args: {
+            ...filesource,
+            ...filerange,
+            ...saveArg("extract"),
+            mode: option({long: "mode", short: "m", type: cmdts.string, defaultValue: () => "bin", description: `A decode mode ${Object.keys(cacheFileDecodeModes).join(", ")}`}),
+            edit: flag({long: "edit", short: "e"}),
+            skipread: flag({long: "noread", short: "n"}),
+            fixhash: flag({long: "fixhash", short: "h"}),
+            batched: flag({long: "batched", short: "b"}),
+            batchlimit: option({long: "batchsize", type: cmdts.number, defaultValue: () => -1}),
+            keepbuffers: flag({long: "keepbuffers"}),
+            relativecs2comps: flag({long: "relativecs2comps"})
+        },
+        async handler(args) {
+            let output = ctx.getConsole();
+            let source = await args.source({writable: args.edit});
+            let decoderflags: Record<string, string> = {};
+            //decoder-specific flags, might want to make them into a value instead of a flag at some point
+            if (args.keepbuffers) { decoderflags.keepbuffers = "true"; }
+            if (args.relativecs2comps) { decoderflags.relativecs2comps = "true"; }
+            await output.run(extractCacheFiles, args.save, source, args, decoderflags);
+        }
+    });
     const cluecoords = command({
         name: "download",
         args: {
@@ -154,28 +149,6 @@ export function cliApi(ctx: CliApiContext) {
             await output.run(testDecodeHistoric, args.save, startcache, args.before, args.maxchecks);
         }
     })
-
-    const extract = command({
-        name: "extract",
-        args: {
-            ...filesource,
-            ...filerange,
-            ...saveArg("extract"),
-            mode: option({long: "mode", short: "m", type: cmdts.string, defaultValue: () => "bin", description: `A decode mode ${Object.keys(cacheFileDecodeModes).join(", ")}`}),
-            edit: flag({long: "edit", short: "e"}),
-            skipread: flag({long: "noread", short: "n"}),
-            fixhash: flag({long: "fixhash", short: "h"}),
-            batched: flag({long: "batched", short: "b"}),
-            batchlimit: option({long: "batchsize", type: cmdts.number, defaultValue: () => -1}),
-            keepbuffers: flag({long: "keepbuffers"})
-        },
-        async handler(args) {
-            let output = ctx.getConsole();
-            let source = await args.source({writable: args.edit});
-            await output.run(extractCacheFiles, args.save, source, args);
-        }
-    });
-
 
     const filehist = command({
         name: "filehist",
@@ -333,264 +306,189 @@ export function cliApi(ctx: CliApiContext) {
             let filesource = await args.source()
             let cache = await EngineCache.create(filesource)
 
-            let all: Map<number, LocWithUsages> = new Map()
+            let prototypes: Prototype[] = []
 
-            async function uses(tile_rect: MapRect, loc: WorldLocation): Promise<void> {
-                const entry: LocWithUsages | null = await (async () => {
-                    if (all.has(loc.locid)) return all.get(loc.locid)!!
+            for (let i = 0; i < 150000; i++) {
+                console.log(`${i}/150.000 locs`)
 
-                    const resolved = loc.location
+                try {
+                    let objectfile = await cache.getGameFile("objects", i);
 
-                    if (!resolved.name) return null
+                    let rawloc = parse.object.read(objectfile, cache);
 
-                    const actions = getActions(resolved)
+                    prototypes.push(Prototype.fromCache({type: "loc", data: rawloc, id: ["loc", i]}))
+                } catch (e) {
 
-                    if (actions.length == 0) return null
-
-                    const e = {
-                        id: loc.locid,
-                        uses: [],
-                        location: resolved
-                    }
-
-                    all.set(loc.locid, e)
-                    return e
-                })()
-
-                if (!entry) return
-
-                let [width, height] = loc.rotation % 2 == 0
-                    ? [entry.location.width ?? 1, entry.location.length ?? 1]
-                    : [entry.location.length ?? 1, entry.location.width ?? 1]
-
-                const box = TileRectangle.lift(
-                    Rectangle.from(
-                        {x: loc.x, y: loc.z},
-                        {x: loc.x + width - 1, y: loc.z + height - 1},
-                    ),
-                    loc.effectiveLevel as floor_t,
-                )
-
-                entry.uses.push({
-                    ...loc,
-                    location: undefined,
-                    box: box,
-                    origin: TileRectangle.bl(box),
-                } as any)
+                }
             }
 
-            let area: MapRect | null = null // {x: 46, z: 52, xsize: 1, zsize: 1}
+            for (let i = 0; i < 150000; i++) {
+                console.log(`${i}/150.000 npcs`)
 
-            await time("Collecting Locs", async () => {
-                await iterate_chunks(area, async (x, y) => {
-                    await time(`Collect ${x}-${y}`, async () => {
-                        const {grid, chunk} = await parseMapsquare(cache, x, y)
+                try {
+                    let objectfile = await cache.getGameFile("npcs", i);
 
-                        console.log(`${chunk?.rawlocs.length} raw vs ${chunk?.locs.length} processed`)
+                    let rawloc = parse.npc.read(objectfile, cache);
 
-                        if (chunk) await Promise.all(chunk.locs.map(async loc => await uses(chunk.tilerect, loc)))
-                    })
-                })
-            })
+                    prototypes.push(Prototype.fromCache({type: "npc", data: rawloc, id: ["npc", i]}))
+                } catch (e) {
 
-            let out = Object.fromEntries(Array.from(all.keys()).map(k => [k, all.get(k)]))
+                }
+            }
 
-            const n = Object.values(out).map(e => e?.uses.length).reduce((a, b) => a!! + b!!, 0)
+            prototypes = prototypes.filter(p => p.name.length > 0 && p.actions.length > 0)
 
-            console.log(`Total of ${n} loc instances`)
+            console.log(prototypes.length)
 
-            fs.writeFileSync("locs.json", JSON.stringify(out))
+            fs.writeFileSync("locs.json", JSON.stringify(prototypes))
 
-        },
-    })
 
-    const extract_shortcuts = command(
-        {
-            name: "shortcuts",
-            args: {},
-            async handler(args) {
+            /*
+                        cache.getGameFile("objects", 0)
 
-                let data: Record<number, LocWithUsages> = JSON.parse(fs.readFileSync("locs.json", "utf-8"))
 
-                await time("Shortcuts", () => {
-                    let shortcuts = transportation_parsers
-                        .flatMap(p => {
-                            if (!p.instance) return []
+                        parse.object.parser.read(await cache.getGameFile("objects", 0))
 
-                            let vars = p.variants
 
-                            if (!vars) {
-                                vars = p.for ? [{for: p.for!!}] : []
-                            }
+                        let all: Map<number, LocWithUsages> = new Map()
 
-                            return vars.flatMap(v => {
-                                return v.for.flatMap(loc_id => {
-                                    let loc: LocWithUsages = data[loc_id]
+                        async function uses(tile_rect: MapRect, loc: WorldLocation): Promise<void> {
+                            const entry: LocWithUsages | null = await (async () => {
+                                if (all.has(loc.locid)) return all.get(loc.locid)!!
 
-                                    if (!loc) {
-                                        console.error(`Parser ${p.name} failed references non-existing id ${loc_id}!`)
-                                        return []
-                                    }
+                                const resolved = loc.location
 
-                                    const instance = p.instance!!(loc.location, v.extra)
+                                if (!resolved.name) return null
 
-                                    let results = loc.uses
-                                        .filter(use =>
-                                            !transportation_rectangle_blacklists.some(blacklist => Rectangle.contains(blacklist, use.box.topleft)),
-                                        )
-                                        .flatMap(use => {
-                                            try {
-                                                let result = instance(loc.location, use)
+                                const actions = getActions(resolved)
 
-                                                if (!Array.isArray(result)) result = [result]
+                                if (actions.length == 0) return null
 
-                                                return result
-                                            } catch (e) {
-                                                console.error(`Parser ${p.name} failed!`)
-                                                console.error(e)
-                                                return []
-                                            }
-                                        })
+                                const e = {
+                                    id: loc.locid,
+                                    uses: [],
+                                    location: resolved
+                                }
 
-                                    results.forEach(s => s.source_loc = loc_id)
+                                all.set(loc.locid, e)
+                                return e
+                            })()
 
-                                    console.log(`Loc ${loc_id}: Extracted ${results.length} (by parser '${p.name}')`)
+                            if (!entry) return
 
-                                    return results
+                            let [width, height] = loc.rotation % 2 == 0
+                                ? [entry.location.width ?? 1, entry.location.length ?? 1]
+                                : [entry.location.length ?? 1, entry.location.width ?? 1]
+
+                            const box = TileRectangle.lift(
+                                Rectangle.from(
+                                    {x: loc.x, y: loc.z},
+                                    {x: loc.x + width - 1, y: loc.z + height - 1},
+                                ),
+                                loc.effectiveLevel as floor_t,
+                            )
+
+                            entry.uses.push({
+                                ...loc,
+                                location: undefined,
+                                box: box,
+                                origin: TileRectangle.bl(box),
+                            } as any)
+                        }
+
+                        let area: MapRect | null = null // {x: 46, z: 52, xsize: 1, zsize: 1}
+
+                        await time("Collecting Locs", async () => {
+                            await iterate_chunks(area, async (x, y) => {
+                                await time(`Collect ${x}-${y}`, async () => {
+                                    const {grid, chunk} = await parseMapsquare(cache, x, y)
+
+                                    console.log(`${chunk?.rawlocs.length} raw vs ${chunk?.locs.length} processed`)
+
+                                    if (chunk) await Promise.all(chunk.locs.map(async loc => await uses(chunk.tilerect, loc)))
                                 })
                             })
                         })
 
+                        let out = Object.fromEntries(Array.from(all.keys()).map(k => [k, all.get(k)]))
 
-                    console.log(`Extracted a total of ${shortcuts.length} shortcuts!`)
+                        const n = Object.values(out).map(e => e?.uses.length).reduce((a, b) => a!! + b!!, 0)
 
-                    fs.writeFileSync("D:\\Projekte\\Tools\\mycluesolver\\static\\map\\cache_transportation.json", JSON.stringify(shortcuts, (key, value) => {
-                        if (key.startsWith("_")) return undefined
+                        console.log(`Total of ${n} loc instances`)
 
-                        return value
-                    }, 2))
+                        fs.writeFileSync("locs.json", JSON.stringify(out))*/
 
-                    fs.writeFileSync("D:\\Projekte\\Tools\\mycluesolver\\dist\\map\\cache_transportation.json", JSON.stringify(shortcuts, (key, value) => {
-                        if (key.startsWith("_")) return undefined
-
-                        return value
-                    }, 2))
-                })
+        },
+    })
+    /*
+        const leridon = command({
+            name: "leridon",
+            args: {
+                ...filesource,
             },
-        })
-
-    const extract_shortcuts2 = command(
-        {
-            name: "shortcuts2",
-            args: {},
             async handler(args) {
+
+                type filter_t = {
+                    names?: string[],
+                    actions?: string[],
+                    area?: TileRectangle,
+                    object_id?: number,
+                    without_parser?: boolean
+                }
+
+                let filter: filter_t = {
+                    names: ["Door"],
+                    actions: ["open", "use", "enter", "climb", "crawl", "scale", "pass", "jump", "leave"],
+                    without_parser: true,
+                    //object_id: 56989,
+                    area: {"topleft": {"x": 2904, "y": 3536}, "botright": {"x": 2922, "y": 3515}, "level": 0},
+                }
 
                 let data: Record<number, LocWithUsages> = JSON.parse(fs.readFileSync("locs.json", "utf-8"))
 
-                await time("Shortcuts", () => {
-                    let shortcuts = parsers2
-                        .flatMap(p => {
+                let filtered = Object.values(data).filter((loc) => {
+                    if (filter.names && !filter.names.some(n => loc.location.name!.toLowerCase().includes(n.toLowerCase()))) return false
+                    if (filter.object_id && loc.id != filter.object_id) return false
+                    if (filter.without_parser && transportation_parsers.some(p => {
+                        return (p.variants && p.variants.some(v => v.for.includes(loc.id))) || (p.for && p.for.includes(loc.id))
+                    })) return false
 
-                            return p.locs.flatMap(l =>
-                                l.for.flatMap(loc_id => {
-                                    let loc: LocWithUsages = data[loc_id]
 
-                                    const instances = p.gather(loc)
+                    if (filter.actions != null) {
+                        const actions = getActions(loc.location)
 
-                                    console.log(`Loc ${loc_id}: Extracted ${instances.length} (by parser '${p._name}')`)
+                        if (actions.length == 0) return false
 
-                                    return instances
-                                })
-                            )
-                        })
+                        if (!actions.some(a => filter.actions?.some(filter_action =>
+                            a.name.toLowerCase().includes(filter_action.toLowerCase()),
+                        ))) return false
+                    }
 
-                    console.log(`Extracted a total of ${shortcuts.length} shortcuts!`)
+                    loc.uses = loc.uses.filter(use => {
+                        return !(filter.area && (!Rectangle.overlaps(filter.area, use.box)))
+                            && !transportation_rectangle_blacklists.some(blacklist => Rectangle.contains(blacklist, use.box.topleft))
+                    })
 
-                    fs.writeFileSync("D:\\Projekte\\Tools\\mycluesolver\\static\\map\\cache_transportation.json", JSON.stringify(shortcuts, (key, value) => {
-                        if (key.startsWith("_")) return undefined
-
-                        return value
-                    }, 2))
-
-                    fs.writeFileSync("D:\\Projekte\\Tools\\mycluesolver\\dist\\map\\cache_transportation.json", JSON.stringify(shortcuts, (key, value) => {
-                        if (key.startsWith("_")) return undefined
-
-                        return value
-                    }, 2))
+                    return loc.uses.length > 0
+                }).sort((a, b) => {
+                    return b.uses.length - a.uses.length
                 })
+
+                //console.log(JSON.stringify(filtered.map(loc => loc.id)))
+                console.log(`${filtered.length} loc types with ${filtered.flatMap(f => f.uses).length} total usages fit the filter.`)
+
+                fs.writeFileSync("results.json", JSON.stringify(filtered.slice(0, 30), null, 2))
             },
         })
-
-    const leridon = command({
-        name: "leridon",
-        args: {
-            ...filesource,
-        },
-        async handler(args) {
-
-            type filter_t = {
-                names?: string[],
-                actions?: string[],
-                area?: TileRectangle,
-                object_id?: number,
-                without_parser?: boolean
-            }
-
-            let filter: filter_t = {
-                names: ["Door"],
-                actions: ["open", "use", "enter", "climb", "crawl", "scale", "pass", "jump", "leave"],
-                without_parser: true,
-                //object_id: 56989,
-                area: {"topleft": {"x": 2904, "y": 3536}, "botright": {"x": 2922, "y": 3515}, "level": 0},
-            }
-
-            let data: Record<number, LocWithUsages> = JSON.parse(fs.readFileSync("locs.json", "utf-8"))
-
-            let filtered = Object.values(data).filter((loc) => {
-                if (filter.names && !filter.names.some(n => loc.location.name!.toLowerCase().includes(n.toLowerCase()))) return false
-                if (filter.object_id && loc.id != filter.object_id) return false
-                if (filter.without_parser && transportation_parsers.some(p => {
-                    return (p.variants && p.variants.some(v => v.for.includes(loc.id))) || (p.for && p.for.includes(loc.id))
-                })) return false
-
-
-                if (filter.actions != null) {
-                    const actions = getActions(loc.location)
-
-                    if (actions.length == 0) return false
-
-                    if (!actions.some(a => filter.actions?.some(filter_action =>
-                        a.name.toLowerCase().includes(filter_action.toLowerCase()),
-                    ))) return false
-                }
-
-                loc.uses = loc.uses.filter(use => {
-                    return !(filter.area && (!Rectangle.overlaps(filter.area, use.box)))
-                        && !transportation_rectangle_blacklists.some(blacklist => Rectangle.contains(blacklist, use.box.topleft))
-                })
-
-                return loc.uses.length > 0
-            }).sort((a, b) => {
-                return b.uses.length - a.uses.length
-            })
-
-            //console.log(JSON.stringify(filtered.map(loc => loc.id)))
-            console.log(`${filtered.length} loc types with ${filtered.flatMap(f => f.uses).length} total usages fit the filter.`)
-
-            fs.writeFileSync("results.json", JSON.stringify(filtered.slice(0, 30), null, 2))
-        },
-    })
-
+    */
 
     let subcommands = cmdts.subcommands({
         name: "",
         cmds: {
             extract, indexoverview, testdecode, diff, quickchat, scrapeavatars, edit, historicdecode, openrs2ids, filehist, cluecoords, cluecoords2, sequencegroups,
             collisions,
-            leridon,
+            //leridon,
             locs,
-            shortcuts: extract_shortcuts,
-            shortcuts2: extract_shortcuts2
         }
     });
 
