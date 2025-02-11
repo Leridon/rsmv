@@ -51,7 +51,6 @@ export namespace Path {
     }
 
     export namespace CursorType {
-
         export type Meta = { type: CursorType, icon_url: string, description: string, short_icon: string }
 
         export function all(): Meta[] {
@@ -126,6 +125,14 @@ export namespace Path {
             }
 
             return table[id ?? 0] || "generic"
+        }
+
+        export function iconSize(scale: number = 1): [number, number] {
+            return [scale * 28, scale * 31]
+        }
+
+        export function iconAnchor(scale: number = 1, centered: boolean = false): [number, number] {
+            return centered ? [scale * 14, scale * 16] : [scale * 3, 0]
         }
 
     }

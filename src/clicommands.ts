@@ -16,11 +16,15 @@ import {getSequenceGroups} from "./scripts/groupskeletons";
 import {CacheFileSource} from "./cache";
 import {EngineCache} from "./3d/modeltothree";
 import {collision_file_index_full, create_collision_files} from "./blocking/blocking";
-import {MapRect} from "./3d/mapsquare";
+import {MapRect, parseMapsquare, WorldLocation} from "./3d/mapsquare";
 import fs from "fs";
 import {parse} from "./opdecoder";
 import {ProcessedCacheTypes} from "./zykloplib/runescape/ProcessedCacheTypes";
+import {time} from "./zykloplib/util";
+import {Rectangle} from "./zykloplib/math";
+import {floor_t, TileRectangle} from "./zykloplib/runescape/coordinates";
 import Prototype = ProcessedCacheTypes.Prototype;
+import Instance = ProcessedCacheTypes.Instance;
 
 
 export type CliApiContext = {
@@ -117,6 +121,7 @@ export function cliApi(ctx: CliApiContext) {
             ...saveArg("extract")
         },
         handler: async (args) => {
+
             let output = ctx.getConsole();
             await output.run(extractCluecoords, args.save, await args.source());
         }
@@ -129,8 +134,13 @@ export function cliApi(ctx: CliApiContext) {
             ...saveArg("extract")
         },
         handler: async (args) => {
+
+
+            let filesource = await args.source()
+            let cache = await EngineCache.create(filesource)
+
             let output = ctx.getConsole();
-            await output.run(extractCluecoords2, args.save, await args.source());
+            await output.run(extractCluecoords2, args.save, await args.source(), cache);
         }
     });
 
@@ -297,8 +307,30 @@ export function cliApi(ctx: CliApiContext) {
         }
     }
 
-    const locs = command({
-        name: "locs",
+    const _prototype_cache: Prototype.Loc[] = []
+
+    async function getLocPrototype(cache: EngineCache, i: number): Promise<Prototype.Loc | null> {
+        if (!_prototype_cache[i]) {
+            try {
+                let objectfile = await cache.getGameFile("objects", i);
+
+                let rawloc = parse.object.read(objectfile, cache);
+
+                _prototype_cache[i] = Prototype.fromCache({type: "loc", data: rawloc, id: ["loc", i]})
+            } catch (e) {
+
+            }
+        }
+
+        return _prototype_cache[i]
+    }
+
+    function prototype_filter(p: Prototype): boolean {
+        return p.name.length > 0 && p.actions.length > 0
+    }
+
+    const prototypes = command({
+        name: "prototypes",
         args: {
             ...filesource,
         },
@@ -311,18 +343,12 @@ export function cliApi(ctx: CliApiContext) {
             for (let i = 0; i < 150000; i++) {
                 console.log(`${i}/150.000 locs`)
 
-                try {
-                    let objectfile = await cache.getGameFile("objects", i);
+                const el = await getLocPrototype(cache, i)
 
-                    let rawloc = parse.object.read(objectfile, cache);
-
-                    prototypes.push(Prototype.fromCache({type: "loc", data: rawloc, id: ["loc", i]}))
-                } catch (e) {
-
-                }
+                if (el) prototypes.push(el)
             }
 
-            for (let i = 0; i < 150000; i++) {
+            for (let i = 0; i < 50000; i++) {
                 console.log(`${i}/150.000 npcs`)
 
                 try {
@@ -336,11 +362,11 @@ export function cliApi(ctx: CliApiContext) {
                 }
             }
 
-            prototypes = prototypes.filter(p => p.name.length > 0 && p.actions.length > 0)
+            prototypes = prototypes.filter(prototype_filter)
 
             console.log(prototypes.length)
 
-            fs.writeFileSync("locs.json", JSON.stringify(prototypes))
+            fs.writeFileSync("prototypes.json", JSON.stringify(prototypes))
 
 
             /*
@@ -420,6 +446,69 @@ export function cliApi(ctx: CliApiContext) {
 
         },
     })
+
+
+    const prototype_instances = command({
+        name: "prototype_instance",
+        args: {
+            ...filesource,
+        },
+        async handler(args) {
+            let filesource = await args.source()
+            let cache = await EngineCache.create(filesource)
+
+            const all: ProcessedCacheTypes.Instance[] = []
+
+            async function uses(tile_rect: MapRect, loc: WorldLocation): Promise<void> {
+                const prototype = await getLocPrototype(cache, loc.resolvedlocid)
+
+                if (!prototype) return
+
+                if (!prototype_filter(prototype)) return
+
+                let [width, height] = loc.rotation % 2 == 0
+                    ? [prototype.size.x, prototype.size.y]
+                    : [prototype.size.y, prototype.size.x]
+
+                const box = TileRectangle.lift(
+                    Rectangle.from(
+                        {x: loc.x, y: loc.z},
+                        {x: loc.x + width - 1, y: loc.z + height - 1},
+                    ),
+                    loc.effectiveLevel as floor_t,
+                )
+
+                const instance: ProcessedCacheTypes.Instance.Loc = {
+                    id: prototype.id,
+                    position: TileRectangle.bl(box),
+                    rotation: loc.rotation
+                }
+
+                all.push(instance)
+            }
+
+            let area: MapRect | null =  null // {x: 46, z: 52, xsize: 1, zsize: 1}
+
+            await time("Collecting Locs", async () => {
+                await iterate_chunks(area, async (x, y) => {
+                    await time(`Collect ${x}-${y}`, async () => {
+                        const {grid, chunk} = await parseMapsquare(cache, x, y)
+
+                        console.log(`${chunk?.rawlocs.length} raw vs ${chunk?.locs.length} processed`)
+
+                        if (chunk) await Promise.all(chunk.locs.map(async loc => await uses(chunk.tilerect, loc)))
+                    })
+                })
+            })
+
+            console.log(`Total of ${all.length} loc instances`)
+
+            fs.writeFileSync("prototype_instances.json", JSON.stringify(all))
+
+        },
+    })
+
+
     /*
         const leridon = command({
             name: "leridon",
@@ -488,7 +577,7 @@ export function cliApi(ctx: CliApiContext) {
             extract, indexoverview, testdecode, diff, quickchat, scrapeavatars, edit, historicdecode, openrs2ids, filehist, cluecoords, cluecoords2, sequencegroups,
             collisions,
             //leridon,
-            locs,
+            prototypes, prototype_instances
         }
     });
 

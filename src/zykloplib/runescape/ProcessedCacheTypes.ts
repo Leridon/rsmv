@@ -4,13 +4,14 @@ import {npcs} from "../../../generated/npcs";
 import {objects} from "../../../generated/objects";
 import {TileCoordinates} from "./coordinates";
 import * as lodash from "lodash"
+import {act} from "react-dom/test-utils";
 
 export namespace ProcessedCacheTypes {
 
     import CursorType = Path.CursorType;
     export type cache = { type: "npc", id: PrototypeID.NPC, data: npcs } | { type: "loc", id: PrototypeID.Loc, data: objects }
 
-    type Action = [string, CursorType]
+    type Action = [string, CursorType, number]
 
     export namespace Action {
         export function fromCache(cache: cache): Action[] {
@@ -21,7 +22,9 @@ export namespace ProcessedCacheTypes {
 
                 if (!exists) return undefined
 
-                return [action as string, CursorType.fromCacheCursor(cache.data[`action_cursors_${i}`])] satisfies Action
+                const cursor = cache.data[`action_cursors_${i}`]
+
+                return [action as string, CursorType.fromCacheCursor(cursor), cursor] satisfies Action
             }).filter(a => a != null).map(a => a!)
         }
     }
@@ -84,24 +87,26 @@ export namespace ProcessedCacheTypes {
             return id[0] + ":" + id[1]
         }
     }
-    export type InstanceData = InstanceData.NPC | InstanceData.Loc
 
-    export namespace InstanceData {
-        export type base = {
+    export type Instance = Instance.Loc | Instance.NPC
+
+    export namespace Instance {
+        type base = {
+            id: PrototypeID,
             rotation: number,
             position: TileCoordinates
         }
 
-        export type NPC = base & {}
-
-        export type Loc = base & {}
+        export type Loc = base & {id: PrototypeID.Loc} & {}
+        export type NPC = base & {id: PrototypeID.NPC} & {}
     }
+
     export type GroupedInstanceData = GroupedInstanceData.Loc | GroupedInstanceData.NPC
 
     export namespace GroupedInstanceData {
-        export type base = { id: PrototypeID, instances: InstanceData[] }
-        export type Loc = base & { id: PrototypeID.Loc, instances: InstanceData.Loc[] }
-        export type NPC = base & { id: PrototypeID.NPC, instances: InstanceData.NPC[] }
+        export type base = { id: PrototypeID, instances: Instance[] }
+        export type Loc = base & { id: PrototypeID.Loc, instances: Instance.Loc[] }
+        export type NPC = base & { id: PrototypeID.NPC, instances: Instance.NPC[] }
 
         export function combine(...data: GroupedInstanceData[][]): GroupedInstanceData[] {
             const combined: Record<string, GroupedInstanceData> = {}
