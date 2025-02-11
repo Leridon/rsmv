@@ -39,7 +39,9 @@ export namespace Path {
         | "pray"
         | "runecraft"
         | "thieve"
-
+        | "disassemble"
+        | "farm"
+        | "jump"
     // TODO: Archaelogy
 
     export type PathAssumptions = {
@@ -86,6 +88,9 @@ export namespace Path {
                 {type: "pray", icon_url: "assets/icons/cursor_pray.png", description: "Pray", short_icon: "cursor_pray"},
                 {type: "runecraft", icon_url: "assets/icons/cursor_runecraft.png", description: "Runecraft", short_icon: "cursor_runecraft"},
                 {type: "thieve", icon_url: "assets/icons/cursor_thieve.png", description: "Thieve", short_icon: "cursor_thieve"},
+                {type: "disassemble", icon_url: "assets/icons/cursor_invention.png", description: "Disassemble", short_icon: "cursor_invention"},
+                {type: "farm", icon_url: "assets/icons/cursor_farm.png", description: "Forage", short_icon: "cursor_farm"},
+                {type: "jump", icon_url: "assets/icons/cursor_jump.png", description: "Jump", short_icon: "cursor_jump"},
             ]
         }
 
@@ -93,69 +98,34 @@ export namespace Path {
             return all().find(s => s.type == type)!!
         }
 
-        export function defaultEntity(type: CursorType): EntityName {
-            switch (type) {
-                case "generic":
-                case "spellonentity":
-                case "craft":
-                case "build":
-                case "use":
-                case "cook":
-                case "divine":
-                case "picklock":
-                case "shovel":
-                case "hunt":
-                case "discover":
-                case "smith":
-                case "herblore":
-                case "burn":
-                case "pray":
-                case "runecraft":
-                    return {kind: "static", name: "Entity"}
-                case "chop":
-                    return {kind: "static", name: "Tree"}
-                case "talk":
-                case "trade":
-                case "thieve":
-                    return {kind: "npc", name: "NPC"}
-                case "attack":
-                    return {kind: "npc", name: "Monster"}
-                case "open":
-                    return {kind: "static", name: "Door"}
-                case "enter":
-                    return {kind: "static", name: "Cave"}
-                case "agility":
-                    return {kind: "static", name: "Shortcut"}
-                case "ladderdown":
-                case "ladderup":
-                    return {kind: "static", name: "Stairs"}
-                case "read":
-                    return {kind: "static", name: "Book"}
-                case "fish":
-                    return {kind: "static", name: "Fishing Spot"}
-                case "search":
-                    return {kind: "static", name: "Chest"}
-                case "mine":
-                    return {kind: "static", name: "Rock"}
-                case "loot":
-                case "equip":
-                    return {kind: "item", name: "Item"}
-            }
-        }
-
-        export function fromCacheCursor(id: number | null | undefined): CursorType {
+        export function fromCacheCursor(id: number | null | undefined) {
             const table: Record<number, CursorType> = {
                 0: "generic",
+                5: "trade",
+                42: "attack",
                 44: "talk",
+                46: "use",
                 49: "open",
+                51: "equip",
                 52: "ladderup",
                 53: "ladderdown",
+                55: "jump",
+                56: "search",
+                57: "enter",
+                58: "mine",
                 59: "chop",
+                60: "fish",
+                61: "pray",
+                63: "smith",
+                64: "cook",
+                171: "farm",
+                173: "shovel",
                 181: "agility",
+                200: "divine",
                 208: "discover",
             }
 
-            return table[id ?? 0] ?? "generic"
+            return table[id ?? 0] || "generic"
         }
 
     }
