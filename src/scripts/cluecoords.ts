@@ -123,6 +123,7 @@ export async function extractCluecoords2(output: ScriptOutput, fs: ScriptFS, fil
         27,//heart of geilinor
         26,//torle islands
         50,//eastern lands compass
+        485, // lost grove scan
     ];
     let indexedcoords: Record<number, TileCoordinates[]> = {}
 
