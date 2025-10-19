@@ -5,14 +5,7 @@ import {cacheFileDecodeModes, cacheFileJsonModes} from "./scripts/filetypes";
 import {CLIScriptFS, CLIScriptOutput, ScriptFS, ScriptOutput} from "./scriptrunner";
 import {defaultTestDecodeOpts, testDecode, testDecodeHistoric} from "./scripts/testdecode";
 import {extractCacheFiles, writeCacheFiles} from "./scripts/extractfiles";
-import {indexOverview} from "./scripts/indexoverview";
-import {diffCaches} from "./scripts/cachediff";
-import {quickChatLookup} from "./scripts/quickchatlookup";
-import {scrapePlayerAvatars} from "./scripts/scrapeavatars";
-import {fileHistory} from "./scripts/filehistory";
-import {openrs2Ids} from "./scripts/openrs2ids";
 import {extractCluecoords, extractCluecoords2} from "./scripts/cluecoords";
-import {getSequenceGroups} from "./scripts/groupskeletons";
 import {CacheFileSource} from "./cache";
 import { indexOverview } from "./scripts/indexoverview";
 import { diffCaches } from "./scripts/cachediff";
@@ -20,28 +13,21 @@ import { quickChatLookup } from "./scripts/quickchatlookup";
 import { scrapePlayerAvatars } from "./scripts/scrapeavatars";
 import { fileHistory } from "./scripts/filehistory";
 import { openrs2Ids } from "./scripts/openrs2ids";
-import { extractCluecoords } from "./scripts/cluecoords";
 import { getSequenceGroups } from "./scripts/groupskeletons";
 import { getGameInterfaces } from "./scripts/gameinterfaces";
-import { CacheFileSource } from "./cache";
 import {EngineCache} from "./3d/modeltothree";
 import {collision_file_index_full, create_collision_files} from "./blocking/blocking";
 import {MapRect, parseMapsquare, WorldLocation} from "./3d/mapsquare";
-import fs from "fs";
 import {parse} from "./opdecoder";
 import {ProcessedCacheTypes} from "./zykloplib/runescape/ProcessedCacheTypes";
 import {time} from "./zykloplib/util";
 import {Rectangle} from "./zykloplib/math";
 import {floor_t, TileRectangle} from "./zykloplib/runescape/coordinates";
 import Prototype = ProcessedCacheTypes.Prototype;
-import Instance = ProcessedCacheTypes.Instance;
-import {transportation_parsers, transportation_rectangle_blacklists} from "./transportation/parsers";
-import {parsers2} from "./transportation/parsers2";
-import {LocUtil} from "./transportation/util/LocUtil";
-import LocWithUsages = LocUtil.LocWithUsages;
-import getActions = LocUtil.getActions;
+
+
 import fs from "fs/promises";
-import { extractClientModuleCode, IsolatedCS2Module } from "./clientscript/extractmodule";
+import { extractClientModuleCode } from "./clientscript/extractmodule";
 
 
 export type CliApiContext = {
@@ -93,31 +79,6 @@ export function cliApi(ctx: CliApiContext) {
 			})
 		} as const;
 	}
-	const testdecode = command({
-		name: "testdecode",
-		args: {
-			...filesource,
-			...filerange,
-			...saveArg("save"),
-			mode: option({ long: "mode", short: "m", description: `A json decode mode ${Object.keys(cacheFileJsonModes).join(", ")}` })
-		},
-		handler: async (args) => {
-			let errdir = args.save;
-			let olderrfiles = await errdir.readDir(".");
-			if (olderrfiles.find(q => !q.name.match(/^(err|pass|fail)-/))) {
-				throw new Error("file not starting with 'err' in error dir");
-			}
-			await Promise.all(olderrfiles.map(q => errdir.unlink(q.name)));
-
-    function saveArg(name: string) {
-        return {
-            save: option({
-                long: "save",
-                short: "s",
-                type: cliFsOutputType(ctx, name)
-            })
-        } as const;
-    }
 
     const testdecode = command({
         name: "testdecode",
@@ -198,10 +159,9 @@ export function cliApi(ctx: CliApiContext) {
 
 
             let filesource = await args.source()
-            let cache = await EngineCache.create(filesource)
 
             let output = ctx.getConsole();
-            await output.run(extractCluecoords2, args.save, await args.source(), cache);
+            await output.run(extractCluecoords2, args.save, await args.source());
         }
     });
 
@@ -260,18 +220,28 @@ export function cliApi(ctx: CliApiContext) {
         }
     });
 
-    const edit = command({
-        name: "edit",
-        args: {
-            ...filesource,
-            ...saveArg("extract"),
-        },
-        async handler(args) {
-            let output = ctx.getConsole();
-            let source = await args.source({writable: true});
-            await output.run(writeCacheFiles, source, args.save);
-        }
-    })
+            const edit = command({
+                name: "edit",
+                args: {
+                    ...filesource,
+                    ...loadArg(),
+                    files: option({
+                        long: "files",
+                        type: cmdts.string,
+                        defaultValue: () => ""
+                    })
+                },
+                async handler(args) {
+                    let output = ctx.getConsole();
+                    let source = await args.source({ writable: true });
+
+                    let files = await Promise.all(args.files.split(",").filter(q => q).flatMap(async q => {
+                        return { name: q, file: await fs.readFile(q) };
+                    }));
+
+                    await output.run(writeCacheFiles, source, args.save, files);
+                }
+            })
 
     const indexoverview = command({
         name: "run",
@@ -334,18 +304,6 @@ export function cliApi(ctx: CliApiContext) {
             await output.run(scrapePlayerAvatars, args.save, source, args.skip, args.max, args.json);
         }
     });
-	const sequencegroups = command({
-		name: "sequencegroups",
-		args: {
-			...filesource,
-			...saveArg("extract")
-		},
-		async handler(args) {
-			let output = ctx.getConsole();
-			let source = await args.source();
-			await output.run(getSequenceGroups, args.save, source);
-		}
-	});
 	const gameinterfaces = command({
 		name: "gameinterfaces",
 		args: {
@@ -486,7 +444,7 @@ export function cliApi(ctx: CliApiContext) {
 
             console.log(prototypes.length)
 
-            fs.writeFileSync("prototypes.json", JSON.stringify(prototypes))
+            await fs.writeFile("prototypes.json", JSON.stringify(prototypes))
 
 
             /*
@@ -623,7 +581,7 @@ export function cliApi(ctx: CliApiContext) {
 
             console.log(`Total of ${all.length} loc instances`)
 
-            fs.writeFileSync("prototype_instances.json", JSON.stringify(all))
+            await fs.writeFile("prototype_instances.json", JSON.stringify(all))
 
         },
     })

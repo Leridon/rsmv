@@ -1,5 +1,4 @@
 import * as fs from 'fs'
-import Jimp from "jimp"
 import * as pako from "pako"
 import {ChunkData, classicChunkSize, getMapsquareData, MapRect, mapsquareObjects, ParsemapOpts, parseMapsquare, rs2ChunkSize, TileGrid, TileProps} from "../3d/mapsquare"
 import {EngineCache} from "../3d/modeltothree"
@@ -241,30 +240,6 @@ export async function parseMapsquares(engine: EngineCache, rect: MapRect, opts?:
     }
 
     return {grid, chunks};
-}
-
-function collisionOverLay(grid: TileGrid, floor: number): Jimp {
-    let image = new Jimp(64, 64)
-
-    for (let dz = 0; dz < 64; dz++) {
-        for (let dx = 0; dx < 64; dx++) {
-
-            let tile = grid.getTile(grid.xoffset + dx, grid.zoffset + dz, floor)
-
-            if (!tile) {
-                continue
-            }
-
-            let col = tile!.effectiveCollision!
-
-            let center_blocked = col.walk[0] || col.sight[0]
-
-            if (center_blocked) image.setPixelColor(Jimp.rgbaToInt(255, 0, 0, 255), dx, 64 - dz)
-            else image.setPixelColor(0x00000000, dx, 64 - dz)
-        }
-    }
-
-    return image
 }
 
 function simpleCollisionFile(grid: TileGrid, floor: number, square_size: number): Uint16Array {

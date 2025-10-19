@@ -1,8 +1,9 @@
-import {ThreeJsRenderer} from "./threejsrender";
+
+import { ThreeJsRenderer } from "./threejsrender";
 import * as React from "react";
-import {boundMethod} from "autobind-decorator";
-import {WasmGameCacheLoader} from "../cache/sqlitewasm";
-import {CacheFileSource, CallbackCacheLoader} from "../cache";
+import { boundMethod } from "autobind-decorator";
+import { WasmGameCacheLoader } from "../cache/sqlitewasm";
+import { CacheFileSource, CallbackCacheLoader } from "../cache";
 import * as datastore from "idb-keyval";
 import { EngineCache, ThreejsSceneCache } from "../3d/modeltothree";
 import { InputCommitted, StringInput, JsonDisplay, IdInput, LabeledInput, TabStrip, CanvasView, BlobImage, BlobAudio, CopyButton } from "./commoncontrols";
@@ -24,14 +25,14 @@ import { ClientScriptViewer } from "./cs2viewer";
 
 //see if we have access to a valid electron import
 let electron: typeof import("electron/renderer") | null = (() => {
-	try {
-		let electron = require("electron/renderer");
-		//some enviroments polyfill an empty mock object, this also catches when electron is imported from a main process and exports only a string
-		if (electron?.ipcRenderer) {
-			return electron;
-		}
-	} catch (e) { }
-	return null;
+    try {
+        let electron = require("electron/renderer");
+        //some enviroments polyfill an empty mock object, this also catches when electron is imported from a main process and exports only a string
+        if (electron?.ipcRenderer) {
+            return electron;
+        }
+    } catch (e) { }
+    return null;
 })();
 
 export type SavedCacheSource = {
@@ -64,20 +65,20 @@ export async function downloadBlob(name: string, blob: Blob) {
 
 /**@deprecated requires a service worker and is pretty sketchy, also no actual streaming output file sources atm */
 export async function downloadStream(name: string, stream: ReadableStream) {
-	if (!electron && navigator.serviceWorker) {
-		let url = new URL(`download_${Math.random() * 10000 | 0}_${name}`, document.location.href).href;
-		let sw = await navigator.serviceWorker.ready;
-		if (!sw.active) { throw new Error("no service worker"); }
-		sw.active.postMessage({ type: "servedata", url, stream }, [stream as any]);
-		await delay(100);
-		let fr = document.createElement("iframe");
-		fr.src = url;
-		fr.hidden = true;
-		document.body.appendChild(fr);
-	} else {
-		//TODO
-		console.log("TODO");
-	}
+    if (!electron && navigator.serviceWorker) {
+        let url = new URL(`download_${Math.random() * 10000 | 0}_${name}`, document.location.href).href;
+        let sw = await navigator.serviceWorker.ready;
+        if (!sw.active) { throw new Error("no service worker"); }
+        sw.active.postMessage({ type: "servedata", url, stream }, [stream as any]);
+        await delay(100);
+        let fr = document.createElement("iframe");
+        fr.src = url;
+        fr.hidden = true;
+        document.body.appendChild(fr);
+    } else {
+        //TODO
+        console.log("TODO");
+    }
 }
 
 function OpenRs2IdSelector(p: { initialid: number, onSelect: (id: number) => void }) {
@@ -117,27 +118,18 @@ function OpenRs2IdSelector(p: { initialid: number, onSelect: (id: number) => voi
 
     let enterCacheId = async (idstring: string) => {
         let id = +idstring;
-        if (id > 0) {
-            p.onSelect(id);
-        } else {
-            let relevantcaches = await validOpenrs2Caches();
-            p.onSelect(relevantcaches[-id].id);
-        }
+        // negative id means latest-x cache
+        if (id <= 0) { id = (await Openrs2CacheSource.getRecentCache(-id)).id; }
+        p.onSelect(id);
     }
-	let enterCacheId = async (idstring: string) => {
-		let id = +idstring;
-		// negative id means latest-x cache
-		if (id <= 0) { id = (await Openrs2CacheSource.getRecentCache(-id)).id; }
-		p.onSelect(id);
-	}
 
     return (
         <React.Fragment>
-            <StringInput initialid={p.initialid + ""} onChange={enterCacheId}/>
-            {!loading && !relevantcaches && <input type="button" className="sub-btn" onClick={openselector} value="More options..."/>}
+            <StringInput initialid={p.initialid + ""} onChange={enterCacheId} />
+            {!loading && !relevantcaches && <input type="button" className="sub-btn" onClick={openselector} value="More options..." />}
             {relevantcaches && (
                 <React.Fragment>
-                    <div style={{overflowY: "auto"}}>
+                    <div style={{ overflowY: "auto" }}>
                         <table>
                             <thead>
                             <tr>
@@ -168,7 +160,7 @@ function OpenRs2IdSelector(p: { initialid: number, onSelect: (id: number) => voi
                             <tbody>
                             {showncaches.map(cache => (
                                 <tr key={cache.language + cache.id}>
-                                    <td><input type="button" value={cache.id} className="sub-btn" onClick={p.onSelect.bind(null, cache.id)}/></td>
+                                    <td><input type="button" value={cache.id} className="sub-btn" onClick={p.onSelect.bind(null, cache.id)} /></td>
                                     {/* <td>{cache.game}</td> */}
                                     {/* <td>{cache.language}</td> */}
                                     <td>{cache.timestamp ? new Date(cache.timestamp).toDateString() : ""}</td>
@@ -185,15 +177,15 @@ function OpenRs2IdSelector(p: { initialid: number, onSelect: (id: number) => voi
 }
 
 export class CacheSelector extends React.Component<{ onOpen: (c: SavedCacheSource) => void, noReopen?: boolean }, { lastFolderOpen: FileSystemDirectoryHandle | null }> {
-	constructor(p) {
-		super(p);
-		this.state = {
-			lastFolderOpen: null
-		};
+    constructor(p) {
+        super(p);
+        this.state = {
+            lastFolderOpen: null
+        };
 
         if (!this.props.noReopen) {
             datastore.get<FileSystemDirectoryHandle>("lastfolderopen").then(f => {
-                if (f) { this.setState({lastFolderOpen: f}); }
+                if (f) { this.setState({ lastFolderOpen: f }); }
             });
         }
     }
@@ -216,28 +208,28 @@ export class CacheSelector extends React.Component<{ onOpen: (c: SavedCacheSourc
     @boundMethod
     async clickOpen() {
         let dir = await showDirectoryPicker();
-        this.props.onOpen({type: "autohandle", handle: dir});
+        this.props.onOpen({ type: "autohandle", handle: dir });
     }
 
-	@boundMethod
-	async clickOpenNative() {
-		if (!electron) { return; }
-		let dir: import("electron").OpenDialogReturnValue = await electron.ipcRenderer.invoke("openfolder", path.resolve(process.env.ProgramData!, "jagex/runescape"));
-		if (!dir.canceled) {
-			this.props.onOpen({ type: "autofs", location: dir.filePaths[0], writable: !!globalThis.writecache });//TODO propper ui for this
-		}
-	}
+    @boundMethod
+    async clickOpenNative() {
+        if (!electron) { return; }
+        let dir: import("electron").OpenDialogReturnValue = await electron.ipcRenderer.invoke("openfolder", path.resolve(process.env.ProgramData!, "jagex/runescape"));
+        if (!dir.canceled) {
+            this.props.onOpen({ type: "autofs", location: dir.filePaths[0], writable: !!globalThis.writecache });//TODO propper ui for this
+        }
+    }
 
     @boundMethod
     async clickOpenLive() {
-        this.props.onOpen({type: "live"});
+        this.props.onOpen({ type: "live" });
     }
 
     @boundMethod
     async clickReopen() {
         if (!this.state.lastFolderOpen) { return; }
         if (await this.state.lastFolderOpen.requestPermission() == "granted") {
-            this.props.onOpen({type: "autohandle", handle: this.state.lastFolderOpen});
+            this.props.onOpen({ type: "autohandle", handle: this.state.lastFolderOpen });
         }
     }
 
@@ -275,45 +267,45 @@ export class CacheSelector extends React.Component<{ onOpen: (c: SavedCacheSourc
             if (folderhandles.length == 1 && filehandles.length == 0) {
                 console.log("stored folder " + folderhandles[0].name);
                 datastore.set("lastfolderopen", folderhandles[0]);
-                this.props.onOpen({type: "autohandle", handle: folderhandles[0]});
+                this.props.onOpen({ type: "autohandle", handle: folderhandles[0] });
             } else {
                 console.log(`added ${Object.keys(files).length} files`);
-                this.props.onOpen({type: "sqliteblobs", blobs: files});
+                this.props.onOpen({ type: "sqliteblobs", blobs: files });
             }
         }
     }
 
     @boundMethod
     openOpenrs2Cache(cachename: number) {
-        this.props.onOpen({type: "openrs2", cachename: cachename + ""});
+        this.props.onOpen({ type: "openrs2", cachename: cachename + "" });
     }
 
-	render() {
-		return (
-			<React.Fragment>
-				{electron && (
-					<React.Fragment>
-						<h2>Native local RS3 cache</h2>
-						<p>Only works when running in electron</p>
-						<input type="button" className="sub-btn" onClick={this.clickOpenNative} value="Open native cache" />
-					</React.Fragment>
-				)}
-				{electron && (
-					<React.Fragment>
-						<h2>Jagex Servers</h2>
-						<p>Download directly from content servers. Only works when running in electron</p>
-						<input type="button" className="sub-btn" onClick={this.clickOpenLive} value="Stream from Jagex" />
-					</React.Fragment>
-				)}
-				<h2>Local Cache</h2>
-				<CacheDragNDropHelp />
-				{!this.props.noReopen && this.state.lastFolderOpen && <input type="button" className="sub-btn" onClick={this.clickReopen} value={`Reopen ${this.state.lastFolderOpen.name}`} />}
-				<h2>Historical caches</h2>
-				<p>Enter any valid cache id from <a target="_blank" href="https://archive.openrs2.org/">OpenRS2</a>. Entering 0 will load the latest RS3 cache, negative values will load previous caches.</p>
-				<OpenRs2IdSelector initialid={0} onSelect={this.openOpenrs2Cache} />
-			</React.Fragment>
-		);
-	}
+    render() {
+        return (
+            <React.Fragment>
+                {electron && (
+                    <React.Fragment>
+                        <h2>Native local RS3 cache</h2>
+                        <p>Only works when running in electron</p>
+                        <input type="button" className="sub-btn" onClick={this.clickOpenNative} value="Open native cache" />
+                    </React.Fragment>
+                )}
+                {electron && (
+                    <React.Fragment>
+                        <h2>Jagex Servers</h2>
+                        <p>Download directly from content servers. Only works when running in electron</p>
+                        <input type="button" className="sub-btn" onClick={this.clickOpenLive} value="Stream from Jagex" />
+                    </React.Fragment>
+                )}
+                <h2>Local Cache</h2>
+                <CacheDragNDropHelp />
+                {!this.props.noReopen && this.state.lastFolderOpen && <input type="button" className="sub-btn" onClick={this.clickReopen} value={`Reopen ${this.state.lastFolderOpen.name}`} />}
+                <h2>Historical caches</h2>
+                <p>Enter any valid cache id from <a target="_blank" href="https://archive.openrs2.org/">OpenRS2</a>. Entering 0 will load the latest RS3 cache, negative values will load previous caches.</p>
+                <OpenRs2IdSelector initialid={0} onSelect={this.openOpenrs2Cache} />
+            </React.Fragment>
+        );
+    }
 }
 
 function CacheDragNDropHelp() {
@@ -326,24 +318,24 @@ function CacheDragNDropHelp() {
             <p>
                 {canfsapi && "Drag a folder containing the RS3 cache files here in order to view it."}
                 {!canfsapi && "Drag the RS3 cache files you wish to view"}
-                <a style={{float: "right"}} onClick={e => setOpen(!open)}>{!open ? "More info" : "Close"}</a>
+                <a style={{ float: "right" }} onClick={e => setOpen(!open)}>{!open ? "More info" : "Close"}</a>
             </p>
             {open && (
-                <div style={{display: "flex", flexDirection: "column"}}>
-                    <TabStrip value={mode} tabs={{fsapi: "Full folder", blob: "Files"}} onChange={setmode as any}/>
+                <div style={{ display: "flex", flexDirection: "column" }}>
+                    <TabStrip value={mode} tabs={{ fsapi: "Full folder", blob: "Files" }} onChange={setmode as any} />
                     {mode == "fsapi" && (
                         <React.Fragment>
                             {!canfsapi && <p className="mv-errortext">You browser does not support full folder loading!</p>}
                             <p>Drop the RuneScape folder into this window.</p>
-                            <input type="text" onFocus={e => e.target.select()} readOnly value={"C:\\ProgramData\\Jagex"}/>
-                            <video src={new URL("../assets/dragndrop.mp4", import.meta.url).href} autoPlay loop style={{aspectRatio: "352/292"}}/>
+                            <input type="text" onFocus={e => e.target.select()} readOnly value={"C:\\ProgramData\\Jagex"} />
+                            <video src={new URL("../assets/dragndrop.mp4", import.meta.url).href} autoPlay loop style={{ aspectRatio: "352/292" }} />
                         </React.Fragment>
                     )}
                     {mode == "blob" && (
                         <React.Fragment>
                             <p>Drop and drop the cache files into this window.</p>
-                            <input type="text" onFocus={e => e.target.select()} readOnly value={"C:\\ProgramData\\Jagex"}/>
-                            <video src={new URL("../assets/dragndropblob.mp4", import.meta.url).href} autoPlay loop style={{aspectRatio: "458/380"}}/>
+                            <input type="text" onFocus={e => e.target.select()} readOnly value={"C:\\ProgramData\\Jagex"} />
+                            <video src={new URL("../assets/dragndropblob.mp4", import.meta.url).href} autoPlay loop style={{ aspectRatio: "458/380" }} />
                         </React.Fragment>
                     )}
                 </div>
@@ -357,24 +349,24 @@ export type UIOpenedFile = { fs: ScriptFS, name: string, data: string | Buffer }
 
 //i should figure out this redux thing...
 export class UIContext extends TypedEmitter<{ openfile: UIOpenedFile | null, statechange: undefined }> {
-	source: CacheFileSource | null = null;
-	sceneCache: ThreejsSceneCache | null = null;
-	renderer: ThreeJsRenderer | null = null;
-	openedfile: UIOpenedFile | null = null;
-	rootElement: HTMLElement;
-	useServiceWorker: boolean;
+    source: CacheFileSource | null = null;
+    sceneCache: ThreejsSceneCache | null = null;
+    renderer: ThreeJsRenderer | null = null;
+    openedfile: UIOpenedFile | null = null;
+    rootElement: HTMLElement;
+    useServiceWorker: boolean;
 
     constructor(rootelement: HTMLElement, useServiceWorker: boolean) {
         super();
         this.rootElement = rootelement;
         this.useServiceWorker = useServiceWorker;
 
-		if (useServiceWorker) {
-			//this service worker holds a reference to the cache fs handle which will keep the handles valid 
-			//across tab reloads
-			navigator.serviceWorker?.register(new URL('../assets/contextholder.js', import.meta.url).href, { scope: './', });
-		}
-	}
+        if (useServiceWorker) {
+            //this service worker holds a reference to the cache fs handle which will keep the handles valid
+            //across tab reloads
+            navigator.serviceWorker?.register(new URL('../assets/contextholder.js', import.meta.url).href, { scope: './', });
+        }
+    }
 
     setCacheSource(source: CacheFileSource | null) {
         this.source = source;
@@ -395,49 +387,49 @@ export class UIContext extends TypedEmitter<{ openfile: UIOpenedFile | null, sta
         return !!this.source && !!this.sceneCache && !!this.renderer;
     }
 
-	@boundMethod
-	openFile(file: UIOpenedFile | null) {
-		this.openedfile = file;
-		this.emit("openfile", file);
-	}
+    @boundMethod
+    openFile(file: UIOpenedFile | null) {
+        this.openedfile = file;
+        this.emit("openfile", file);
+    }
 }
 
 
 export async function openSavedCache(source: SavedCacheSource, remember: boolean) {
-	let cache: CacheFileSource | null = null;
-	if (source.type == "sqliteblobs" || source.type == "autohandle") {
-		if (source.type == "autohandle") {
-			let perm = await source.handle.queryPermission({ mode: "read" });
-			if (perm == "granted") {
-				let wasmcache = new WasmGameCacheLoader();
-				// let fs = new UIScriptFS(null);
-				// await fs.setSaveDirHandle(source.handle);
-				// cache = await selectFsCache(fs);
-				await wasmcache.giveFsDirectory(source.handle);
-				navigator.serviceWorker?.ready.then(q => q.active?.postMessage({ type: "sethandle", handle: source.handle }));
-				cache = wasmcache;
-			}
-		} else {
-			let wasmcache = new WasmGameCacheLoader();
-			wasmcache.giveBlobs(source.blobs);
-			cache = wasmcache;
-		}
-	}
-	if (source.type == "openrs2") {
-		cache = await Openrs2CacheSource.fromId(+source.cachename);
-	}
-	if (electron && source.type == "autofs") {
-		let fs = new CLIScriptFS(source.location);
-		cache = await selectFsCache(fs, { writable: source.writable });
-	}
-	if (source.type == "live") {
-		cache = new CacheDownloader();
-	}
-	if (remember) {
-		datastore.set("openedcache", source);
-		localStorage.rsmv_openedcache = JSON.stringify(source);
-	}
-	return cache;
+    let cache: CacheFileSource | null = null;
+    if (source.type == "sqliteblobs" || source.type == "autohandle") {
+        if (source.type == "autohandle") {
+            let perm = await source.handle.queryPermission({ mode: "read" });
+            if (perm == "granted") {
+                let wasmcache = new WasmGameCacheLoader();
+                // let fs = new UIScriptFS(null);
+                // await fs.setSaveDirHandle(source.handle);
+                // cache = await selectFsCache(fs);
+                await wasmcache.giveFsDirectory(source.handle);
+                navigator.serviceWorker?.ready.then(q => q.active?.postMessage({ type: "sethandle", handle: source.handle }));
+                cache = wasmcache;
+            }
+        } else {
+            let wasmcache = new WasmGameCacheLoader();
+            wasmcache.giveBlobs(source.blobs);
+            cache = wasmcache;
+        }
+    }
+    if (source.type == "openrs2") {
+        cache = await Openrs2CacheSource.fromId(+source.cachename);
+    }
+    if (electron && source.type == "autofs") {
+        let fs = new CLIScriptFS(source.location);
+        cache = await selectFsCache(fs, { writable: source.writable });
+    }
+    if (source.type == "live") {
+        cache = new CacheDownloader();
+    }
+    if (remember) {
+        datastore.set("openedcache", source);
+        localStorage.rsmv_openedcache = JSON.stringify(source);
+    }
+    return cache;
 }
 
 
@@ -469,7 +461,7 @@ function bufToHexView(buf: Buffer) {
             }
         }
     }
-    return {resulthex, resultchrs};
+    return { resulthex, resultchrs };
 }
 
 function annotatedHexDom(data: Buffer, chunks: DecodeErrorJson["chunks"]) {
@@ -482,7 +474,7 @@ function annotatedHexDom(data: Buffer, chunks: DecodeErrorJson["chunks"]) {
     let hexels = document.createDocumentFragment();
     let textels = document.createDocumentFragment();
     let labelel = document.createElement("span");
-    let currentchunk: DecodeErrorJson["chunks"][number] | undefined = {offset: 0, len: 0, label: "start"};
+    let currentchunk: DecodeErrorJson["chunks"][number] | undefined = { offset: 0, len: 0, label: "start" };
 
     let mappedchunks: { chunk: DecodeErrorJson["chunks"][number], hexel: HTMLElement, textel: HTMLElement }[] = [];
 
@@ -521,7 +513,7 @@ function annotatedHexDom(data: Buffer, chunks: DecodeErrorJson["chunks"]) {
                 textspan.appendChild(textnode);
                 hexels.appendChild(hexspan);
                 textels.appendChild(textspan);
-                mappedchunks.push({chunk: currentchunk, hexel: hexspan, textel: textspan});
+                mappedchunks.push({ chunk: currentchunk, hexel: hexspan, textel: textspan });
             } else {
                 hexels.appendChild(hexnode);
                 textels.appendChild(textnode);
@@ -552,32 +544,32 @@ function annotatedHexDom(data: Buffer, chunks: DecodeErrorJson["chunks"]) {
     }
     endchunk();
 
-    return {hexels, textels, labelel};
+    return { hexels, textels, labelel };
 }
 
 function UnknownFileViewer(p: { data: Buffer, ext: string }) {
-	let finalext = p.ext.split(".").at(-1)!;
-	let istext = ["json", "jsonc", "ts", "js"].includes(finalext);
+    let finalext = p.ext.split(".").at(-1)!;
+    let istext = ["json", "jsonc", "ts", "js"].includes(finalext);
 
-	let [override, setoverride] = React.useState<{ ext: string, istext: boolean } | null>(null);
+    let [override, setoverride] = React.useState<{ ext: string, istext: boolean } | null>(null);
 
-	if (override?.ext == p.ext) {
-		istext = override.istext;
-	}
+    if (override?.ext == p.ext) {
+        istext = override.istext;
+    }
 
-	return (
-		<React.Fragment>
-			<input type="button" className="sub-btn" value={istext ? "View hex" : "View text"} onClick={e => setoverride({ ext: p.ext, istext: !istext })} />
-			<CopyButton getText={() => istext ? p.data.toString("utf8") : p.data.toString("hex")} />
-			{istext && <SimpleTextViewer file={p.data.toString("utf8")} />}
-			{!istext && <TrivialHexViewer data={p.data} />}
-		</React.Fragment>
-	)
+    return (
+        <React.Fragment>
+            <input type="button" className="sub-btn" value={istext ? "View hex" : "View text"} onClick={e => setoverride({ ext: p.ext, istext: !istext })} />
+            <CopyButton getText={() => istext ? p.data.toString("utf8") : p.data.toString("hex")} />
+            {istext && <SimpleTextViewer file={p.data.toString("utf8")} />}
+            {!istext && <TrivialHexViewer data={p.data} />}
+        </React.Fragment>
+    )
 }
 
 
 function TrivialHexViewer(p: { data: Buffer }) {
-    let {resulthex, resultchrs} = bufToHexView(p.data);
+    let { resulthex, resultchrs } = bufToHexView(p.data);
 
     return (
         <table>
@@ -592,16 +584,16 @@ function TrivialHexViewer(p: { data: Buffer }) {
 }
 
 function AnnotatedHexViewer(p: { data: Buffer, chunks: DecodeErrorJson["chunks"] }) {
-    let {hexels, textels, labelel} = React.useMemo(() => annotatedHexDom(p.data, p.chunks), [p.data, p.chunks]);
+    let { hexels, textels, labelel } = React.useMemo(() => annotatedHexDom(p.data, p.chunks), [p.data, p.chunks]);
 
     return (
         <table>
             <tbody>
             <tr>
-                <DomWrap tagName="td" el={hexels} className="mv-hexrow"/>
-                <DomWrap tagName="td" el={textels} className="mv-hexrow"/>
+                <DomWrap tagName="td" el={hexels} className="mv-hexrow" />
+                <DomWrap tagName="td" el={textels} className="mv-hexrow" />
                 <td>
-                    <DomWrap el={labelel} className="mv-hexlabel"/>
+                    <DomWrap el={labelel} className="mv-hexlabel" />
                 </td>
             </tr>
             </tbody>
@@ -610,59 +602,59 @@ function AnnotatedHexViewer(p: { data: Buffer, chunks: DecodeErrorJson["chunks"]
 }
 
 function FileDecodeErrorViewer(p: { file: string }) {
-	let [mode, setmode] = React.useState("split" as "split" | "full");
-	let [err, buffer] = React.useMemo(() => {
-		let err: DecodeErrorJson = JSON.parse(p.file);
-		let buffer = Buffer.from(err.originalFile, "hex");
-		return [err, buffer];
-	}, [p.file]);
+    let [mode, setmode] = React.useState("split" as "split" | "full");
+    let [err, buffer] = React.useMemo(() => {
+        let err: DecodeErrorJson = JSON.parse(p.file);
+        let buffer = Buffer.from(err.originalFile, "hex");
+        return [err, buffer];
+    }, [p.file]);
 
-	let clickstickylabel = (e: React.MouseEvent<HTMLElement>) => {
-		let target = findParentElement(e.currentTarget, el => el.tagName == "TR");
-		let scrollparent = findParentElement(e.currentTarget, el => ["auto", "scroll"].includes(window.getComputedStyle(el).overflowY));
-		if (!target || !scrollparent) { return; }
-		let scrollbounds = scrollparent.getBoundingClientRect();
-		let bounds = target.getBoundingClientRect();
-		let isbelow = (bounds.top + bounds.bottom) / 2 > (scrollbounds.top + scrollbounds.bottom) / 2;
-		let margin = scrollbounds.height / 4
-		scrollparent.scrollTop += (isbelow ? bounds.bottom - margin : bounds.top - scrollbounds.height + margin);
-	}
+    let clickstickylabel = (e: React.MouseEvent<HTMLElement>) => {
+        let target = findParentElement(e.currentTarget, el => el.tagName == "TR");
+        let scrollparent = findParentElement(e.currentTarget, el => ["auto", "scroll"].includes(window.getComputedStyle(el).overflowY));
+        if (!target || !scrollparent) { return; }
+        let scrollbounds = scrollparent.getBoundingClientRect();
+        let bounds = target.getBoundingClientRect();
+        let isbelow = (bounds.top + bounds.bottom) / 2 > (scrollbounds.top + scrollbounds.bottom) / 2;
+        let margin = scrollbounds.height / 4
+        scrollparent.scrollTop += (isbelow ? bounds.bottom - margin : bounds.top - scrollbounds.height + margin);
+    }
 
-	return (
-		<div className="mv-hexrow">
-			<div>
-				<input type="button" className={classNames("sub-btn", { "active": mode == "split" })} onClick={e => setmode("split")} value="split" />
-				<input type="button" className={classNames("sub-btn", { "active": mode == "full" })} onClick={e => setmode("full")} value="full" />
-				<input type="button" className="sub-btn" onClick={e => downloadBlob("file.bin", new Blob([buffer], { type: "application/octet-stream" }))} value="download original" />
-				<CopyButton getText={() => bufToHexView(buffer).resulthex} />
-			</div>
-			{err.error}
-			{mode == "full" && (
-				<AnnotatedHexViewer data={buffer} chunks={err.chunks} />
-			)}
-			{mode == "split" && (
-				<React.Fragment>
-					<div>Chunks</div>
-					<table>
-						<tbody>
-							{err.chunks.map((q, i) => {
-								let hexview = bufToHexView(buffer.slice(q.offset, q.offset + q.len));
-								return (
-									<tr key={q.offset + "-" + i}>
-										<td>{hexview.resulthex}</td>
-										<td>{hexview.resultchrs}</td>
-										<td>{q.len > 16 * 20 ? <span className="mv-hexstickylabel" onClick={clickstickylabel}>{q.label}</span> : q.label}</td>
-									</tr>
-								);
-							})}
-						</tbody>
-					</table>
-				</React.Fragment>
-			)}
-			<div>State</div>
-			{prettyJson(err.state)}
-		</div>
-	);
+    return (
+        <div className="mv-hexrow">
+            <div>
+                <input type="button" className={classNames("sub-btn", { "active": mode == "split" })} onClick={e => setmode("split")} value="split" />
+                <input type="button" className={classNames("sub-btn", { "active": mode == "full" })} onClick={e => setmode("full")} value="full" />
+                <input type="button" className="sub-btn" onClick={e => downloadBlob("file.bin", new Blob([buffer], { type: "application/octet-stream" }))} value="download original" />
+                <CopyButton getText={() => bufToHexView(buffer).resulthex} />
+            </div>
+            {err.error}
+            {mode == "full" && (
+                <AnnotatedHexViewer data={buffer} chunks={err.chunks} />
+            )}
+            {mode == "split" && (
+                <React.Fragment>
+                    <div>Chunks</div>
+                    <table>
+                        <tbody>
+                        {err.chunks.map((q, i) => {
+                            let hexview = bufToHexView(buffer.slice(q.offset, q.offset + q.len));
+                            return (
+                                <tr key={q.offset + "-" + i}>
+                                    <td>{hexview.resulthex}</td>
+                                    <td>{hexview.resultchrs}</td>
+                                    <td>{q.len > 16 * 20 ? <span className="mv-hexstickylabel" onClick={clickstickylabel}>{q.label}</span> : q.label}</td>
+                                </tr>
+                            );
+                        })}
+                        </tbody>
+                    </table>
+                </React.Fragment>
+            )}
+            <div>State</div>
+            {prettyJson(err.state)}
+        </div>
+    );
 }
 
 function SimpleTextViewer(p: { file: string }) {
@@ -674,65 +666,65 @@ function SimpleTextViewer(p: { file: string }) {
 }
 
 export function FileDisplay(p: { file: UIOpenedFile }) {
-	let el: React.ReactNode = null;
-	let cnvref = React.useRef<HTMLCanvasElement | null>(null);
-	let ext = (p.file.name.match(/\.([\w\.]+)$/i)?.[1] ?? "").toLowerCase();
-	let fileBuffer = () => {
-		return (typeof p.file.data == "string" ? Buffer.from(p.file.data, "utf8") : p.file.data);
-	}
-	let fileText = () => {
-		return (typeof p.file.data == "string" ? p.file.data : p.file.data.toString("utf8"));
-	}
+    let el: React.ReactNode = null;
+    let cnvref = React.useRef<HTMLCanvasElement | null>(null);
+    let ext = (p.file.name.match(/\.([\w\.]+)$/i)?.[1] ?? "").toLowerCase();
+    let fileBuffer = () => {
+        return (typeof p.file.data == "string" ? Buffer.from(p.file.data, "utf8") : p.file.data);
+    }
+    let fileText = () => {
+        return (typeof p.file.data == "string" ? p.file.data : p.file.data.toString("utf8"));
+    }
 
-	if (ext == "hexerr.json") {
-		el = <FileDecodeErrorViewer file={fileText()} />;
-	} else if (ext == "ui.json") {
-		el = <RsUIViewer data={fileText()} />
-	} else if (ext == "cs2.json") {
-		el = <ClientScriptViewer data={fileText()} />
-	} else if (ext == "html") {
-		el = <iframe srcDoc={fileText()} sandbox="allow-scripts" style={{ width: "95%", height: "95%" }} />;
-	} else if (ext == "rstex") {
-		let tex = new ParsedTexture(fileBuffer(), false, false);
-		cnvref.current ??= document.createElement("canvas");
-		const cnv = cnvref.current;
-		tex.toWebgl().then(img => drawTexture(cnv.getContext("2d")!, img));
-		el = <CanvasView canvas={cnvref.current} fillHeight={true} />;
-	} else if (["png", "jpg", "jpeg", "webp", "svg"].includes(ext)) {
-		el = <BlobImage file={fileBuffer()} ext={ext} fillHeight={true} />
-	} else if (ext == "jaga" || ext == "ogg") {
-		let buf = fileBuffer();
-		let header = buf.readUint32BE(0);
-		if (header == 0x4a414741) {//"JAGA"
-			let parts = parse.audio.read(buf, new CallbackCacheLoader(() => { throw new Error("dummy cache") }, false));
-			el = (
-				<React.Fragment>
-					{parts.chunks.map((q, i) => (q.data ? <BlobAudio key={i} file={q.data} autoplay={i == 0} /> : <div key={i}>{q.fileid}</div>))}
-				</React.Fragment>
-			)
-		} else if (header == 0x4f676753) {//"OggS"
-			el = <BlobAudio file={fileBuffer()} autoplay={true} />
-		} else {
-			console.log("unexpected header", header, header.toString(16));
-		}
-	} else {
-		el = <UnknownFileViewer data={fileBuffer()} ext={ext} />
-	}
-	return el;
+    if (ext == "hexerr.json") {
+        el = <FileDecodeErrorViewer file={fileText()} />;
+    } else if (ext == "ui.json") {
+        el = <RsUIViewer data={fileText()} />
+    } else if (ext == "cs2.json") {
+        el = <ClientScriptViewer data={fileText()} />
+    } else if (ext == "html") {
+        el = <iframe srcDoc={fileText()} sandbox="allow-scripts" style={{ width: "95%", height: "95%" }} />;
+    } else if (ext == "rstex") {
+        let tex = new ParsedTexture(fileBuffer(), false, false);
+        cnvref.current ??= document.createElement("canvas");
+        const cnv = cnvref.current;
+        tex.toWebgl().then(img => drawTexture(cnv.getContext("2d")!, img));
+        el = <CanvasView canvas={cnvref.current} fillHeight={true} />;
+    } else if (["png", "jpg", "jpeg", "webp", "svg"].includes(ext)) {
+        el = <BlobImage file={fileBuffer()} ext={ext} fillHeight={true} />
+    } else if (ext == "jaga" || ext == "ogg") {
+        let buf = fileBuffer();
+        let header = buf.readUint32BE(0);
+        if (header == 0x4a414741) {//"JAGA"
+            let parts = parse.audio.read(buf, new CallbackCacheLoader(() => { throw new Error("dummy cache") }, false));
+            el = (
+                <React.Fragment>
+                    {parts.chunks.map((q, i) => (q.data ? <BlobAudio key={i} file={q.data} autoplay={i == 0} /> : <div key={i}>{q.fileid}</div>))}
+                </React.Fragment>
+            )
+        } else if (header == 0x4f676753) {//"OggS"
+            el = <BlobAudio file={fileBuffer()} autoplay={true} />
+        } else {
+            console.log("unexpected header", header, header.toString(16));
+        }
+    } else {
+        el = <UnknownFileViewer data={fileBuffer()} ext={ext} />
+    }
+    return el;
 }
 
 export function FileViewer(p: { file: UIOpenedFile, onSelectFile: (f: UIOpenedFile | null) => void }) {
-	return (
-		<div style={{ display: "grid", gridTemplateRows: "auto 1fr" }}>
-			<div className="mv-modal-head">
-				<span>{p.file.name}</span>
-				<span style={{ float: "right", marginLeft: "10px" }} onClick={e => downloadBlob(p.file.name, new Blob([p.file.data]))}>download</span>
-				<span style={{ float: "right", marginLeft: "10px" }} onClick={e => p.onSelectFile(null)}>x</span>
-			</div>
-			<div style={{ overflow: "auto", flex: "1", position: "relative" }}>
-				<FileDisplay file={p.file} />
-			</div>
-		</div>
-	);
+    return (
+        <div style={{ display: "grid", gridTemplateRows: "auto 1fr" }}>
+            <div className="mv-modal-head">
+                <span>{p.file.name}</span>
+                <span style={{ float: "right", marginLeft: "10px" }} onClick={e => downloadBlob(p.file.name, new Blob([p.file.data]))}>download</span>
+                <span style={{ float: "right", marginLeft: "10px" }} onClick={e => p.onSelectFile(null)}>x</span>
+            </div>
+            <div style={{ overflow: "auto", flex: "1", position: "relative" }}>
+                <FileDisplay file={p.file} />
+            </div>
+        </div>
+    );
 }
 
