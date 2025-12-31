@@ -22,6 +22,7 @@ import { CLIScriptFS, ScriptFS } from "../scriptrunner";
 import { drawTexture } from "../imgutils";
 import { RsUIViewer } from "./rsuiviewer";
 import { ClientScriptViewer } from "./cs2viewer";
+import { RsFontViewer } from "./fontviewer";
 
 //see if we have access to a valid electron import
 let electron: typeof import("electron/renderer") | null = (() => {
@@ -676,41 +677,43 @@ export function FileDisplay(p: { file: UIOpenedFile }) {
         return (typeof p.file.data == "string" ? p.file.data : p.file.data.toString("utf8"));
     }
 
-    if (ext == "hexerr.json") {
-        el = <FileDecodeErrorViewer file={fileText()} />;
-    } else if (ext == "ui.json") {
-        el = <RsUIViewer data={fileText()} />
-    } else if (ext == "cs2.json") {
-        el = <ClientScriptViewer data={fileText()} />
-    } else if (ext == "html") {
-        el = <iframe srcDoc={fileText()} sandbox="allow-scripts" style={{ width: "95%", height: "95%" }} />;
-    } else if (ext == "rstex") {
-        let tex = new ParsedTexture(fileBuffer(), false, false);
-        cnvref.current ??= document.createElement("canvas");
-        const cnv = cnvref.current;
-        tex.toWebgl().then(img => drawTexture(cnv.getContext("2d")!, img));
-        el = <CanvasView canvas={cnvref.current} fillHeight={true} />;
-    } else if (["png", "jpg", "jpeg", "webp", "svg"].includes(ext)) {
-        el = <BlobImage file={fileBuffer()} ext={ext} fillHeight={true} />
-    } else if (ext == "jaga" || ext == "ogg") {
-        let buf = fileBuffer();
-        let header = buf.readUint32BE(0);
-        if (header == 0x4a414741) {//"JAGA"
-            let parts = parse.audio.read(buf, new CallbackCacheLoader(() => { throw new Error("dummy cache") }, false));
-            el = (
-                <React.Fragment>
-                    {parts.chunks.map((q, i) => (q.data ? <BlobAudio key={i} file={q.data} autoplay={i == 0} /> : <div key={i}>{q.fileid}</div>))}
-                </React.Fragment>
-            )
-        } else if (header == 0x4f676753) {//"OggS"
-            el = <BlobAudio file={fileBuffer()} autoplay={true} />
-        } else {
-            console.log("unexpected header", header, header.toString(16));
-        }
-    } else {
-        el = <UnknownFileViewer data={fileBuffer()} ext={ext} />
-    }
-    return el;
+	if (ext == "hexerr.json") {
+		el = <FileDecodeErrorViewer file={fileText()} />;
+	} else if (ext == "ui.json") {
+		el = <RsUIViewer data={fileText()} />
+	} else if (ext == "font.json") { 
+		el = <RsFontViewer data={JSON.parse(fileText())} />
+	} else if (ext == "cs2.json") {
+		el = <ClientScriptViewer data={fileText()} />
+	} else if (ext == "html") {
+		el = <iframe srcDoc={fileText()} sandbox="allow-scripts" style={{ width: "95%", height: "95%" }} />;
+	} else if (ext == "rstex") {
+		let tex = new ParsedTexture(fileBuffer(), false, false);
+		cnvref.current ??= document.createElement("canvas");
+		const cnv = cnvref.current;
+		tex.toWebgl().then(img => drawTexture(cnv.getContext("2d")!, img));
+		el = <CanvasView canvas={cnvref.current} fillHeight={true} />;
+	} else if (["png", "jpg", "jpeg", "webp", "svg"].includes(ext)) {
+		el = <BlobImage file={fileBuffer()} ext={ext} fillHeight={true} />
+	} else if (ext == "jaga" || ext == "ogg") {
+		let buf = fileBuffer();
+		let header = buf.readUint32BE(0);
+		if (header == 0x4a414741) {//"JAGA"
+			let parts = parse.audio.read(buf, new CallbackCacheLoader(() => { throw new Error("dummy cache") }, false));
+			el = (
+				<React.Fragment>
+					{parts.chunks.map((q, i) => (q.data ? <BlobAudio key={i} file={q.data} autoplay={i == 0} /> : <div key={i}>{q.fileid}</div>))}
+				</React.Fragment>
+			)
+		} else if (header == 0x4f676753) {//"OggS"
+			el = <BlobAudio file={fileBuffer()} autoplay={true} />
+		} else {
+			console.log("unexpected header", header, header.toString(16));
+		}
+	} else {
+		el = <UnknownFileViewer data={fileBuffer()} ext={ext} />
+	}
+	return el;
 }
 
 export function FileViewer(p: { file: UIOpenedFile, onSelectFile: (f: UIOpenedFile | null) => void }) {
