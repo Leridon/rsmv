@@ -1,8 +1,8 @@
-import { parseSprite, spriteHash } from "../3d/sprite";
-import { CacheFileSource } from "../cache";
-import { cacheMajors } from "../constants";
-import { pixelsToDataUrl, sliceImage } from "../imgutils";
-import { parse } from "../opdecoder";
+import {parseSprite, spriteHash} from "../3d/sprite";
+import {CacheFileSource} from "../cache";
+import {cacheMajors} from "../constants";
+import {pixelsToDataUrl, sliceImage} from "../imgutils";
+import {parse} from "../opdecoder";
 
 export type FontCharacterJson = {
     chr: string,
@@ -58,8 +58,8 @@ export async function loadFontMetrics(cache: CacheFileSource, buf: Buffer, fonti
         sheethash: spriteHash(img.img),
         sheetwidth: fontdata.sprite.sheetwidth,
         sheetheight: fontdata.sprite.sheetheight,
-        // sheet: await pixelsToDataUrl(img.img)
-        sheet: ""
+        sheet: await pixelsToDataUrl(img.img)
+        //sheet: ""
     };
     for (let i = 0; i < fontdata.sprite.positions.length; i++) {
         let pos = fontdata.sprite.positions[i];
@@ -68,7 +68,7 @@ export async function loadFontMetrics(cache: CacheFileSource, buf: Buffer, fonti
             font.characters.push(null);
             continue;
         }
-        let subimg = sliceImage(img.img, { x: pos.x, y: pos.y, width: size.width, height: size.height });
+        let subimg = sliceImage(img.img, {x: pos.x, y: pos.y, width: size.width, height: size.height});
         font.characters.push({
             chr: String.fromCharCode(i),
             charcode: i,
@@ -100,14 +100,26 @@ export function measureFontText(font: ParsedFontJson, text: string) {
             width = Math.max(width, x);
         }
     }
-    return { width, height };
+    return {width, height};
 }
 
+
 export function fontTextCanvas(font: ParsedFontJson, sheet: HTMLImageElement, text: string, scale: number) {
-    let { width, height } = measureFontText(font, text);
+
+    text = font.characters.map(c => c?.chr)
+        .filter(c => c != null && c != " ")
+        .join(" ")
+
+    let {width, height} = measureFontText(font, text);
     let canvas = document.createElement("canvas");
     canvas.width = Math.max(1, width * scale);
     canvas.height = Math.max(1, height * scale);
+
+    console.log(`Scale: ${scale}`)
+    console.log(`Height: ${height}`)
+
+    const underline_y = font.baseline * scale + font.maxascent * scale + 2;
+
     let ctx = canvas.getContext("2d")!;
     ctx.scale(scale, scale);
     let x = 0;
@@ -120,8 +132,20 @@ export function fontTextCanvas(font: ParsedFontJson, sheet: HTMLImageElement, te
         }
         let fontchar = font.characters[text.charCodeAt(i)];
         if (fontchar) {
-            let dy = fontchar.bearingy;
+            let dy = fontchar.bearingy - fontchar.height;
+            console.log(dy)
             ctx.drawImage(sheet, fontchar.x, fontchar.y, fontchar.width, fontchar.height, x, y + dy, fontchar.width, fontchar.height);
+
+            if (fontchar.chr != " ") {
+                ctx.beginPath();
+                ctx.moveTo(x, underline_y);
+                ctx.lineTo(x + fontchar.width, underline_y)
+                ctx.stroke()
+                ctx.lineWidth = 1 / scale;
+                ctx.strokeStyle = "#ffffffff";
+
+                ctx.closePath()
+            }
             x += fontchar.width;
         }
     }
