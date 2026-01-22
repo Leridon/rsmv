@@ -68,18 +68,6 @@ export function RsFontViewer(p: { data: ParsedFontJson }) {
     React.useEffect(() => {
         if (!loaded) { return; }
 
-        let fmeta: GenerateFontMeta = {
-            basey: p.data.baseline,
-            chars: p.data.characters.map(c => c?.chr).filter(c => c != null).join(""),
-            color: [255, 255, 255],
-            seconds: ",.-:;\"'|*",
-            shadow: shadow,
-            spacewidth: p.data.characters.find(c => c?.chr == " ")?.width ?? 0,
-            spriteid: p.data.spriteid,
-            treshold: 0.6,
-            unblendmode: "raw"
-        }
-
         if(readable) {
             let cnv = readableFontText(p.data, sheetimg, shadow)
             setcanvas(cnv);

@@ -105,7 +105,7 @@ export function measureFontText(font: ParsedFontJson, text: string) {
 
 export function readableFontText(font: ParsedFontJson, sheet: HTMLImageElement, shadow: boolean) {
     const included_characters = font.characters.map(c => c?.chr)
-        .filter(c => c != null && c.charCodeAt(0) <= 0x7f && c != " ")
+        .filter(c => c != null && c.charCodeAt(0) <= 0x7f && c != " " && c != "`")
         .map(c => c!!)
 
     const text = included_characters.join(" ")
@@ -116,33 +116,36 @@ export function readableFontText(font: ParsedFontJson, sheet: HTMLImageElement, 
 
     const composed = composeTexts(font_canvas, "#ffffffff", shadow);
 
-    const ctx = composed.getContext("2d")!;
+    const final_canvas = document.createElement("canvas");
+    final_canvas.width = composed.width;
+    final_canvas.height = composed.height + 2;
 
-    const composed_data = ctx.getImageData(0, 0, composed.width, composed.height);
+    const ctx = final_canvas.getContext("2d")!;
 
-    for (let x = 0; x < composed_data.width; x++) {
-        for (let y = 0; y < composed_data.height; y++) {
-            const index = (y * composed_data.width + x) * 4;
+    ctx.drawImage(composed, 0, 0);
 
-            const not_empty =
-                composed_data.data[index] != 0 ||
-                composed_data.data[index + 1] != 0 ||
-                composed_data.data[index + 2] != 0
+    const final_data = ctx.getImageData(0, 0, final_canvas.width, final_canvas.height);
+    {
+        let x = 0;
+        const space_width = scale * font.characters.find(c => c?.chr == " ")!.width
+        for (let character of included_characters) {
+            let chr = font.characters.find(c => c?.chr == character)!!;
 
-            if (not_empty) {
-                const bottom_index = ((composed_data.height - 1) * composed_data.width + x) * 4
+            for (let xi = 0; xi < scale * chr.width; xi++) {
+                const bottom_index = ((final_data.height - 1) * final_data.width + x + xi) * 4
 
-                composed_data.data[bottom_index] = 255;
-                composed_data.data[bottom_index + 1] = 255;
-                composed_data.data[bottom_index + 2] = 255;
-                composed_data.data[bottom_index + 3] = 255;
-
-                break;
+                final_data.data[bottom_index] = 255;
+                final_data.data[bottom_index + 1] = 255;
+                final_data.data[bottom_index + 2] = 255;
+                final_data.data[bottom_index + 3] = 255;
             }
+
+            x += scale * chr.width;
+            x += space_width
         }
     }
 
-    ctx.putImageData(composed_data, 0, 0);
+    ctx.putImageData(final_data, 0, 0);
 
     let m = {
         basey: scale * font.baseline - 2,
@@ -159,7 +162,7 @@ export function readableFontText(font: ParsedFontJson, sheet: HTMLImageElement, 
     console.log("Meta")
     console.log(m)
 
-    return composed
+    return final_canvas
 }
 
 
