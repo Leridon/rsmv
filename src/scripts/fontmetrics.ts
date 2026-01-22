@@ -103,12 +103,73 @@ export function measureFontText(font: ParsedFontJson, text: string) {
     return {width, height};
 }
 
+export function readableFontText(font: ParsedFontJson, sheet: HTMLImageElement, shadow: boolean) {
+    const included_characters = font.characters.map(c => c?.chr)
+        .filter(c => c != null && c.charCodeAt(0) <= 0x7f && c != " ")
+        .map(c => c!!)
+
+    const text = included_characters.join(" ")
+
+    const scale = 1 / font.scale;
+
+    const font_canvas = fontTextCanvas(font, sheet, text, 1 / font.scale);
+
+    const composed = composeTexts(font_canvas, "#ffffffff", shadow);
+
+    const ctx = composed.getContext("2d")!;
+
+    const composed_data = ctx.getImageData(0, 0, composed.width, composed.height);
+
+    for (let x = 0; x < composed_data.width; x++) {
+        for (let y = 0; y < composed_data.height; y++) {
+            const index = (y * composed_data.width + x) * 4;
+
+            const not_empty =
+                composed_data.data[index] != 0 ||
+                composed_data.data[index + 1] != 0 ||
+                composed_data.data[index + 2] != 0
+
+            if (not_empty) {
+                const bottom_index = ((composed_data.height - 1) * composed_data.width + x) * 4
+
+                composed_data.data[bottom_index] = 255;
+                composed_data.data[bottom_index + 1] = 255;
+                composed_data.data[bottom_index + 2] = 255;
+                composed_data.data[bottom_index + 3] = 255;
+
+                break;
+            }
+        }
+    }
+
+    ctx.putImageData(composed_data, 0, 0);
+
+    let m = {
+        basey: scale * font.baseline - 2,
+        chars: included_characters.join(""),
+        color: [255, 255, 255],
+        seconds: ",.-:;\"'|*",
+        shadow: shadow,
+        spacewidth: scale * (font.characters.find(c => c?.chr == " ")?.width ?? 0),
+        spriteid: font.spriteid,
+        treshold: 0.6,
+        unblendmode: "raw"
+    }
+
+    console.log("Meta")
+    console.log(m)
+
+    return composed
+}
+
 
 export function fontTextCanvas(font: ParsedFontJson, sheet: HTMLImageElement, text: string, scale: number) {
 
-    text = font.characters.map(c => c?.chr)
+    console.log(font)
+
+    /*text = font.characters.map(c => c?.chr)
         .filter(c => c != null && c != " ")
-        .join(" ")
+        .join(" ")*/
 
     let {width, height} = measureFontText(font, text);
     let canvas = document.createElement("canvas");
@@ -117,8 +178,6 @@ export function fontTextCanvas(font: ParsedFontJson, sheet: HTMLImageElement, te
 
     console.log(`Scale: ${scale}`)
     console.log(`Height: ${height}`)
-
-    const underline_y = font.baseline * scale + font.maxascent * scale + 2;
 
     let ctx = canvas.getContext("2d")!;
     ctx.scale(scale, scale);
@@ -132,20 +191,10 @@ export function fontTextCanvas(font: ParsedFontJson, sheet: HTMLImageElement, te
         }
         let fontchar = font.characters[text.charCodeAt(i)];
         if (fontchar) {
-            let dy = fontchar.bearingy - fontchar.height;
-            console.log(dy)
+            let dy = fontchar.bearingy;
+
             ctx.drawImage(sheet, fontchar.x, fontchar.y, fontchar.width, fontchar.height, x, y + dy, fontchar.width, fontchar.height);
 
-            if (fontchar.chr != " ") {
-                ctx.beginPath();
-                ctx.moveTo(x, underline_y);
-                ctx.lineTo(x + fontchar.width, underline_y)
-                ctx.stroke()
-                ctx.lineWidth = 1 / scale;
-                ctx.strokeStyle = "#ffffffff";
-
-                ctx.closePath()
-            }
             x += fontchar.width;
         }
     }

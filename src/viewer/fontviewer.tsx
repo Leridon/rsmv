@@ -1,5 +1,5 @@
 import * as React from "react";
-import {composeTexts, fontTextCanvas, ParsedFontJson} from "../scripts/fontmetrics";
+import {composeTexts, fontTextCanvas, ParsedFontJson, readableFontText} from "../scripts/fontmetrics";
 import {CanvasView, CopyButton} from "./commoncontrols";
 
 
@@ -54,6 +54,7 @@ export function RsFontViewer(p: { data: ParsedFontJson }) {
     let [color, setcolor] = React.useState("#ffffff");
     let [shadow, setshadow] = React.useState(true);
     let [loaded, setloaded] = React.useState(false);
+    let [readable, setreadable] = React.useState(true);
     //cache the sheet image
     let sheetimg = React.useMemo(() => {
         let img = new Image();
@@ -79,13 +80,18 @@ export function RsFontViewer(p: { data: ParsedFontJson }) {
             unblendmode: "raw"
         }
 
-        console.log(fmeta);
+        if(readable) {
+            let cnv = readableFontText(p.data, sheetimg, shadow)
+            setcanvas(cnv);
+        } else {
+            let textcnv = fontTextCanvas(p.data, sheetimg, text, 1 / p.data.scale)
+            // let textcnv = fontTextCanvas(p.data, sheetimg, text, 1)
+            let composed = composeTexts(textcnv, color, shadow);
+            setcanvas(composed);
+        }
 
-        let textcnv = fontTextCanvas(p.data, sheetimg, text, 1 / p.data.scale)
-        // let textcnv = fontTextCanvas(p.data, sheetimg, text, 1)
-        let composed = composeTexts(textcnv, color, shadow);
-        setcanvas(composed);
-    }, [p.data, text, color, shadow, loaded]);
+
+    }, [p.data, text, color, shadow, loaded, readable]);
 
     let ref = (el: HTMLDivElement) => {
         if (el) {
@@ -106,6 +112,12 @@ export function RsFontViewer(p: { data: ParsedFontJson }) {
                 <label>
                     <input type="checkbox" checked={shadow} onChange={e => setshadow(e.currentTarget.checked)}/>
                     Drop Shadow
+                </label>
+            </div>
+            <div>
+                <label>
+                    <input type="checkbox" checked={readable} onChange={e => setreadable(e.currentTarget.checked)}/>
+                    Readable Export
                 </label>
             </div>
             <CopyButton canvas={canvas ?? undefined}/>
