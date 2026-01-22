@@ -3,6 +3,7 @@ import {CacheFileSource} from "../cache";
 import {cacheMajors} from "../constants";
 import {pixelsToDataUrl, sliceImage} from "../imgutils";
 import {parse} from "../opdecoder";
+import lodash from "lodash"
 
 export type FontCharacterJson = {
     chr: string,
@@ -103,12 +104,29 @@ export function measureFontText(font: ParsedFontJson, text: string) {
     return {width, height};
 }
 
+export function normalizeFont(font: ParsedFontJson): ParsedFontJson {
+    let copy = lodash.cloneDeep(font)
+
+    const min_bearing = Math.min(...font.characters.map(c => c?.bearingy ?? 100000))
+
+    copy.baseline -= min_bearing
+
+    for (let character of copy.characters) {
+        if(character?.bearingy != null) character.bearingy -= min_bearing
+    }
+
+    return copy
+}
+
 export function readableFontText(font: ParsedFontJson, sheet: HTMLImageElement, shadow: boolean) {
-    const included_characters = font.characters.map(c => c?.chr)
-        .filter(c => c != null && c.charCodeAt(0) <= 0x7f && c != " " && c != "`")
+    console.log("font")
+    console.log(font)
+
+    const included_characters = font.characters
+        .filter(c => c?.chr != null && c.chr.charCodeAt(0) <= 0x7f && c.chr != " " && c.chr != "`")
         .map(c => c!!)
 
-    const text = included_characters.join(" ")
+    const text = included_characters.map(c => c.chr).join(" ")
 
     const scale = 1 / font.scale;
 
@@ -116,22 +134,26 @@ export function readableFontText(font: ParsedFontJson, sheet: HTMLImageElement, 
 
     const composed = composeTexts(font_canvas, "#ffffffff", shadow);
 
+    const min_bearing = Math.min(...included_characters.map(c => c?.bearingy ?? 100000)) * scale
+
+    console.log(`Min bearing ${min_bearing}`)
+
     const final_canvas = document.createElement("canvas");
     final_canvas.width = composed.width;
-    final_canvas.height = composed.height + 2;
+    final_canvas.height = composed.height + 2 - min_bearing;
 
     const ctx = final_canvas.getContext("2d")!;
 
-    ctx.drawImage(composed, 0, 0);
+    ctx.drawImage(composed, 0, -min_bearing);
 
     const final_data = ctx.getImageData(0, 0, final_canvas.width, final_canvas.height);
+
+    console.log(`Final height ${final_data.height}`)
     {
         let x = 0;
         const space_width = scale * font.characters.find(c => c?.chr == " ")!.width
         for (let character of included_characters) {
-            let chr = font.characters.find(c => c?.chr == character)!!;
-
-            for (let xi = 0; xi < scale * chr.width; xi++) {
+            for (let xi = 0; xi < scale * character.width; xi++) {
                 const bottom_index = ((final_data.height - 1) * final_data.width + x + xi) * 4
 
                 final_data.data[bottom_index] = 255;
@@ -140,7 +162,7 @@ export function readableFontText(font: ParsedFontJson, sheet: HTMLImageElement, 
                 final_data.data[bottom_index + 3] = 255;
             }
 
-            x += scale * chr.width;
+            x += scale * character.width;
             x += space_width
         }
     }
@@ -148,8 +170,8 @@ export function readableFontText(font: ParsedFontJson, sheet: HTMLImageElement, 
     ctx.putImageData(final_data, 0, 0);
 
     let m = {
-        basey: scale * font.baseline - 2,
-        chars: included_characters.join(""),
+        basey: scale * font.baseline - 2 - min_bearing,
+        chars: included_characters.map(c => c.chr).join(""),
         color: [255, 255, 255],
         seconds: ",.-:;\"'|*",
         shadow: shadow,
@@ -167,20 +189,10 @@ export function readableFontText(font: ParsedFontJson, sheet: HTMLImageElement, 
 
 
 export function fontTextCanvas(font: ParsedFontJson, sheet: HTMLImageElement, text: string, scale: number) {
-
-    console.log(font)
-
-    /*text = font.characters.map(c => c?.chr)
-        .filter(c => c != null && c != " ")
-        .join(" ")*/
-
     let {width, height} = measureFontText(font, text);
     let canvas = document.createElement("canvas");
     canvas.width = Math.max(1, width * scale);
     canvas.height = Math.max(1, height * scale);
-
-    console.log(`Scale: ${scale}`)
-    console.log(`Height: ${height}`)
 
     let ctx = canvas.getContext("2d")!;
     ctx.scale(scale, scale);
